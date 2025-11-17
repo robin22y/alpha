@@ -103,6 +103,74 @@ export function checkMilestone(
 }
 
 /**
+ * Check if user has reached a new milestone
+ * Compares current progress to last checked milestone
+ */
+export function checkForNewMilestone(
+  currentPercentage: number,
+  lastMilestonePercentage: number
+): { reached: boolean; milestone?: typeof MILESTONES[0] } {
+  // Find the highest milestone reached that hasn't been celebrated yet
+  for (const milestone of MILESTONES) {
+    if (currentPercentage >= milestone.percentage && 
+        lastMilestonePercentage < milestone.percentage) {
+      return { reached: true, milestone };
+    }
+  }
+  return { reached: false };
+}
+
+/**
+ * Get next milestone to reach
+ */
+export function getNextMilestone(currentPercentage: number): typeof MILESTONES[0] | null {
+  for (const milestone of MILESTONES) {
+    if (currentPercentage < milestone.percentage) {
+      return milestone;
+    }
+  }
+  return null;
+}
+
+/**
+ * Get all milestones reached
+ */
+export function getMilestonesReached(currentPercentage: number): typeof MILESTONES[0][] {
+  return MILESTONES.filter(m => currentPercentage >= m.percentage);
+}
+
+/**
+ * Get percentage to next milestone
+ */
+export function getProgressToNextMilestone(currentPercentage: number): {
+  current: number;
+  next: number;
+  percentage: number;
+} | null {
+  const nextMilestone = getNextMilestone(currentPercentage);
+  
+  if (!nextMilestone) {
+    return null; // Already at 100%
+  }
+  
+  // Find previous milestone
+  const previousMilestone = MILESTONES
+    .filter(m => m.percentage <= currentPercentage)
+    .sort((a, b) => b.percentage - a.percentage)[0];
+  
+  const previousPercentage = previousMilestone?.percentage || 0;
+  const range = nextMilestone.percentage - previousPercentage;
+  const progress = currentPercentage - previousPercentage;
+  const percentage = Math.round((progress / range) * 100);
+  
+  return {
+    current: currentPercentage,
+    next: nextMilestone.percentage,
+    percentage: Math.max(0, Math.min(100, percentage))
+  };
+}
+
+/**
  * Format week display
  */
 export function formatWeekDisplay(

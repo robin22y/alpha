@@ -11,15 +11,19 @@ import { formatCurrency, getCurrency } from '@/lib/currency';
 import { 
   calculateWeekNumber, 
   formatWeekDisplay,
-  getWeeklyMessage 
+  getWeeklyMessage,
+  checkForNewMilestone
 } from '@/lib/progress';
 import PrivacyBadge from '@/components/PrivacyBadge';
 import Navigation from '@/components/Navigation';
+import MilestoneCelebration from '@/components/MilestoneCelebration';
 
 export default function DashboardPage() {
   const router = useRouter();
   const [currency, setCurrency] = useState<ReturnType<typeof getCurrency> | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [showMilestone, setShowMilestone] = useState(false);
+  const [celebrateMilestone, setCelebrateMilestone] = useState<any>(null);
   
   // Get store data
   const {
@@ -32,7 +36,8 @@ export default function DashboardPage() {
     totalMonthlyPayment,
     progress,
     updateProgress,
-    initializeFromLocalStorage
+    initializeFromLocalStorage,
+    addMilestone
   } = useUserStore();
 
   // Initialize on mount
@@ -48,6 +53,29 @@ export default function DashboardPage() {
       updateProgress();
     }
   }, [mounted, createdAt, timeline, updateProgress]);
+
+  // Check for milestone after updating progress
+  useEffect(() => {
+    if (mounted && createdAt && progress.timeProgressPercentage > 0) {
+      const milestoneCheck = checkForNewMilestone(
+        progress.timeProgressPercentage,
+        progress.lastMilestonePercentage
+      );
+      
+      if (milestoneCheck.reached && milestoneCheck.milestone) {
+        // Show celebration
+        setCelebrateMilestone(milestoneCheck.milestone);
+        setShowMilestone(true);
+        
+        // Save milestone to store
+        addMilestone(
+          milestoneCheck.milestone.percentage,
+          milestoneCheck.milestone.label,
+          milestoneCheck.milestone.emoji
+        );
+      }
+    }
+  }, [mounted, createdAt, progress.timeProgressPercentage, progress.lastMilestonePercentage, addMilestone]);
 
   // Redirect if not initialized
   useEffect(() => {
@@ -536,6 +564,14 @@ export default function DashboardPage() {
         </div>
         </div>
       </div>
+
+      {/* Milestone Celebration */}
+      {showMilestone && celebrateMilestone && (
+        <MilestoneCelebration
+          milestone={celebrateMilestone}
+          onClose={() => setShowMilestone(false)}
+        />
+      )}
     </>
   );
 }
