@@ -2,25 +2,94 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #000000;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: system-ui, -apple-system, sans-serif;
+  --font-mono: 'Courier New', monospace;
+  
+  /* Active income (work for money) - RED */
+  --color-active-light: #FFA8A8;
+  --color-active: #FF6B6B;
+  --color-active-dark: #E03131;
+  
+  /* Passive income (money works for you) - GREEN */
+  --color-passive-light: #8CE99A;
+  --color-passive: #51CF66;
+  --color-passive-dark: #37B24D;
+  
+  /* Trust & privacy - GREEN tones */
+  --color-trust-light: #B2F2BB;
+  --color-trust: #69DB7C;
+  --color-trust-dark: #2F9E44;
+  
+  /* Goals - BLUE */
+  --color-goal-light: #74C0FC;
+  --color-goal: #4DABF7;
+  --color-goal-dark: #1C7ED6;
+  
+  /* Debt - ORANGE/AMBER tones */
+  --color-debt-light: #FFE066;
+  --color-debt: #FFC107;
+  --color-debt-dark: #FF9800;
+}
+
+/* Tailwind v4 color utilities */
+@layer utilities {
+  .bg-active-light { background-color: var(--color-active-light); }
+  .bg-active { background-color: var(--color-active); }
+  .bg-active-dark { background-color: var(--color-active-dark); }
+  .text-active-light { color: var(--color-active-light); }
+  .text-active { color: var(--color-active); }
+  .text-active-dark { color: var(--color-active-dark); }
+  
+  .bg-passive-light { background-color: var(--color-passive-light); }
+  .bg-passive { background-color: var(--color-passive); }
+  .bg-passive-dark { background-color: var(--color-passive-dark); }
+  .text-passive-light { color: var(--color-passive-light); }
+  .text-passive { color: var(--color-passive); }
+  .text-passive-dark { color: var(--color-passive-dark); }
+  
+  .bg-trust-light { background-color: var(--color-trust-light); }
+  .bg-trust { background-color: var(--color-trust); }
+  .bg-trust-dark { background-color: var(--color-trust-dark); }
+  .text-trust-light { color: var(--color-trust-light); }
+  .text-trust { color: var(--color-trust); }
+  .text-trust-dark { color: var(--color-trust-dark); }
+  
+  .bg-goal-light { background-color: var(--color-goal-light); }
+  .bg-goal { background-color: var(--color-goal); }
+  .bg-goal-dark { background-color: var(--color-goal-dark); }
+  .text-goal-light { color: var(--color-goal-light); }
+  .text-goal { color: var(--color-goal); }
+  .text-goal-dark { color: var(--color-goal-dark); }
+  
+  .bg-debt-light { background-color: var(--color-debt-light); }
+  .bg-debt { background-color: var(--color-debt); }
+  .bg-debt-dark { background-color: var(--color-debt-dark); }
+  .text-debt-light { color: var(--color-debt-light); }
+  .text-debt { color: var(--color-debt); }
+  .text-debt-dark { color: var(--color-debt-dark); }
+  
+  .border-trust { border-color: var(--color-trust); }
+  .border-goal { border-color: var(--color-goal); }
+  .border-passive { border-color: var(--color-passive); }
+  .ring-passive { --tw-ring-color: var(--color-passive); }
+  .ring-goal-light { --tw-ring-color: var(--color-goal-light); }
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #ffffff;
+    --foreground: #000000;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }

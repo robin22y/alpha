@@ -1,0 +1,314 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Calendar, TrendingUp, DollarSign, Target, ArrowRight } from 'lucide-react';
+import { useUserStore } from '@/store/useUserStore';
+import { formatCurrency, getCurrency } from '@/lib/currency';
+import {
+  calculateIncomeBreakdown,
+  calculateDebtProjection,
+  calculatePhases,
+  calculateInterestSavings,
+  formatDate
+} from '@/lib/calculations';
+import PrivacyBadge from '@/components/PrivacyBadge';
+
+export default function ResultsPage() {
+  const router = useRouter();
+  const [currency, setCurrency] = useState<ReturnType<typeof getCurrency> | null>(null);
+  
+  const finances = useUserStore((state) => state.finances);
+  const habit = useUserStore((state) => state.habit);
+  const totalDebt = useUserStore((state) => state.totalDebt);
+  const totalMonthlyPayment = useUserStore((state) => state.totalMonthlyPayment);
+  const debts = useUserStore((state) => state.debts);
+  const goal = useUserStore((state) => state.goal);
+  const timeline = useUserStore((state) => state.timeline);
+
+  useEffect(() => {
+    setCurrency(getCurrency());
+    // Debug: log current state
+    console.log('Results page - Total debt:', totalDebt);
+    console.log('Results page - Total monthly payment:', totalMonthlyPayment);
+    console.log('Results page - Debts:', useUserStore.getState().debts);
+  }, [totalDebt, totalMonthlyPayment]);
+
+  const hasDebt = totalDebt > 0;
+  
+  // Calculate projections
+  const incomeBreakdown = calculateIncomeBreakdown(finances.monthlyIncome);
+  
+  // Use customAmount if set, otherwise use onePercentAmount
+  const habitAmount = habit.customAmount || habit.onePercentAmount || 0;
+  const isCustomAmount = habit.customAmount !== undefined && habit.customAmount !== null;
+  
+  const debtProjection = hasDebt ? calculateDebtProjection(
+    totalDebt,
+    totalMonthlyPayment,
+    habitAmount,
+    habit.committed
+  ) : null;
+  
+  const phases = hasDebt ? calculatePhases(
+    totalDebt,
+    totalMonthlyPayment,
+    habitAmount,
+    habit.committed,
+    isCustomAmount
+  ) : [];
+  
+  // Calculate interest savings if habit is committed and we have debt data
+  const interestSavings = hasDebt && habit.committed && debtProjection && debts.length > 0
+    ? calculateInterestSavings(
+        debts,
+        debtProjection.currentTimeline,
+        debtProjection.with1Percent,
+        habitAmount
+      )
+    : null;
+
+  if (!currency) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-2xl font-bold text-black">Loading...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen py-8 px-4" style={{ background: 'linear-gradient(to bottom right, white, rgba(129, 233, 154, 0.2), rgba(116, 192, 252, 0.2))' }}>
+      <PrivacyBadge />
+      
+      <div className="max-w-4xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="inline-block p-4 rounded-full mb-4" style={{ backgroundColor: '#51CF66' }}>
+            <Target size={48} style={{ color: '#FFFFFF' }} />
+          </div>
+          
+          <h1 className="text-3xl md:text-4xl font-bold mb-3" style={{ color: '#000000' }}>
+            Your Breakdown
+          </h1>
+          <p className="text-lg" style={{ color: '#666666' }}>
+            Based on the numbers you entered
+          </p>
+        </div>
+
+        {/* Current situation */}
+        <div className="bg-white rounded-lg shadow-lg p-6 md:p-8 mb-6">
+          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2" style={{ color: '#000000' }}>
+            <DollarSign style={{ color: '#4DABF7' }} />
+            Your Current Breakdown
+          </h2>
+
+          <div className="grid md:grid-cols-3 gap-6 mb-6">
+            <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#74C0FC' }}>
+              <p className="text-sm mb-1" style={{ color: '#666666' }}>Monthly Income</p>
+              <p className="text-2xl font-bold" style={{ color: '#1C7ED6' }}>
+                {formatCurrency(finances.monthlyIncome, currency.code)}
+              </p>
+            </div>
+
+            <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#FEE2E2' }}>
+              <p className="text-sm mb-1" style={{ color: '#666666' }}>Monthly Spending</p>
+              <p className="text-2xl font-bold" style={{ color: '#B91C1C' }}>
+                {formatCurrency(finances.monthlySpending, currency.code)}
+              </p>
+            </div>
+
+            <div className={`text-center p-4 rounded-lg ${
+              finances.monthlyLeftover >= 0 ? '' : ''
+            }`} style={{ backgroundColor: finances.monthlyLeftover >= 0 ? '#8CE99A' : '#FEE2E2' }}>
+              <p className="text-sm mb-1" style={{ color: '#666666' }}>Monthly Leftover</p>
+              <p className={`text-2xl font-bold ${
+                finances.monthlyLeftover >= 0 ? '' : ''
+              }`} style={{ color: finances.monthlyLeftover >= 0 ? '#37B24D' : '#B91C1C' }}>
+                {formatCurrency(finances.monthlyLeftover, currency.code)}
+              </p>
+            </div>
+          </div>
+
+          {/* Simple pie chart placeholder */}
+          <div className="rounded-lg p-6 text-center" style={{ backgroundColor: '#F9FAFB' }}>
+            <p className="text-lg font-semibold mb-4" style={{ color: '#000000' }}>Income Type</p>
+            <div className="max-w-xs mx-auto">
+              <div className="flex items-center justify-center gap-4 mb-4">
+                <div className="w-32 h-32 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(to bottom right, #FF6B6B, #E03131)' }}>
+                  <div className="text-center text-white">
+                    <p className="text-3xl font-bold">{incomeBreakdown.activePercentage}%</p>
+                    <p className="text-xs">Active</p>
+                  </div>
+                </div>
+              </div>
+              <p className="text-sm" style={{ color: '#666666' }}>
+                Currently, {incomeBreakdown.activePercentage}% of your income comes from active work
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Debt projections */}
+        {hasDebt && debtProjection ? (
+          <div className="bg-white rounded-lg shadow-lg p-6 md:p-8 mb-6">
+            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2" style={{ color: '#000000' }}>
+              <Calendar style={{ color: '#51CF66' }} />
+              Your Debt-Free Timeline
+            </h2>
+
+            <div className="rounded-lg p-6 mb-6 text-center" style={{ backgroundColor: '#FFE066' }}>
+              <p className="text-sm mb-2" style={{ color: '#666666' }}>Total Debt</p>
+              <p className="text-4xl font-bold mb-1" style={{ color: '#FF9800' }}>
+                {formatCurrency(totalDebt, currency.code)}
+              </p>
+              <p className="text-sm" style={{ color: '#666666' }}>
+                Paying {formatCurrency(totalMonthlyPayment, currency.code)}/month
+              </p>
+            </div>
+
+            {/* Phase comparison */}
+            <div className="space-y-4">
+              {phases.map((phase, idx) => (
+                <div
+                  key={idx}
+                  className={`border-2 rounded-lg p-6 ${
+                    idx === 0 ? '' : ''
+                  }`}
+                  style={{ 
+                    borderColor: idx === 0 ? '#D1D5DB' : '#51CF66',
+                    backgroundColor: idx > 0 ? 'rgba(129, 233, 154, 0.1)' : 'transparent'
+                  }}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="font-bold text-lg" style={{ color: '#000000' }}>{phase.label}</p>
+                      <p className="text-sm" style={{ color: '#666666' }}>
+                        {phase.description.includes('Add') && currency ? 
+                          `Add ${formatCurrency(parseFloat(phase.description.match(/\d+/)?.[0] || '0'), currency.code)}/month` :
+                          phase.description
+                        }
+                      </p>
+                    </div>
+                    {idx > 0 && (
+                      <div className="px-3 py-1 rounded-full text-sm font-semibold text-white" style={{ backgroundColor: '#51CF66' }}>
+                        Recommended
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm mb-1" style={{ color: '#666666' }}>Estimated Timeline</p>
+                      <p className="text-2xl font-bold" style={{ color: '#37B24D' }}>
+                        {phase.timelineMonths} months
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm mb-1" style={{ color: '#666666' }}>Estimated Debt-Free Date</p>
+                      <p className="text-2xl font-bold" style={{ color: '#37B24D' }}>
+                        {formatDate(phase.debtFreeDate)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {habit.committed && debtProjection.timeSaved > 0 && (
+              <div className="mt-6 border-2 rounded-lg p-6 text-center" style={{ backgroundColor: '#8CE99A', borderColor: '#51CF66' }}>
+                <p className="text-lg font-semibold mb-2" style={{ color: '#000000' }}>
+                  ⚡ By committing to {isCustomAmount ? 'your step-up strategy' : 'the 1% habit'}:
+                </p>
+                <div className="grid md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <p className="text-2xl font-bold mb-1" style={{ color: '#37B24D' }}>
+                      {debtProjection.timeSaved} months faster
+                    </p>
+                    <p className="text-sm" style={{ color: '#666666' }}>
+                      {Math.floor(debtProjection.timeSaved / 12) > 0 && (
+                        <>That's {Math.floor(debtProjection.timeSaved / 12)} year{Math.floor(debtProjection.timeSaved / 12) !== 1 ? 's' : ''} saved!</>
+                      )}
+                      {Math.floor(debtProjection.timeSaved / 12) === 0 && (
+                        <>Time saved on your debt-free journey</>
+                      )}
+                    </p>
+                  </div>
+                  {interestSavings && interestSavings.interestSaved > 0 && (
+                    <div>
+                      <p className="text-2xl font-bold mb-1" style={{ color: '#37B24D' }}>
+                        {formatCurrency(interestSavings.interestSaved, currency.code)} saved
+                      </p>
+                      <p className="text-sm" style={{ color: '#666666' }}>
+                        Approximately in interest payments
+                      </p>
+                    </div>
+                  )}
+                </div>
+                {interestSavings && interestSavings.interestSaved > 0 && (
+                  <p className="text-xs mt-2" style={{ color: '#666666' }}>
+                    * Interest calculation is approximate and based on average balance method
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        ) : totalDebt === 0 ? (
+          <div className="bg-white rounded-lg shadow-lg p-6 md:p-8 mb-6">
+            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2" style={{ color: '#000000' }}>
+              <Calendar style={{ color: '#51CF66' }} />
+              Your Debt-Free Timeline
+            </h2>
+            <div className="text-center p-8">
+              <p className="text-lg mb-4" style={{ color: '#666666' }}>
+                No debts entered
+              </p>
+              <p className="text-sm" style={{ color: '#666666' }}>
+                You can add debts later from your dashboard
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {/* Goal reminder */}
+        {goal.label && (
+          <div className="rounded-lg p-6 mb-6 text-center" style={{ backgroundColor: '#74C0FC' }}>
+            <p className="text-lg mb-2" style={{ color: '#000000' }}>Your goal:</p>
+            <p className="text-2xl font-bold" style={{ color: '#1C7ED6' }}>{goal.label}</p>
+            {timeline.targetDate && (
+              <p className="text-sm mt-2" style={{ color: '#666666' }}>
+                Target: {formatDate(new Date(timeline.targetDate))}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Disclaimer */}
+        <div className="border rounded-lg p-4 mb-6 text-sm text-center" style={{ backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }}>
+          <p style={{ color: '#374151' }}>
+            <strong>Important:</strong> These are simplified estimates for planning purposes only. 
+            Actual timelines depend on your specific situation, interest rates, and commitment. 
+            This is not financial advice.
+          </p>
+        </div>
+
+        {/* CTA */}
+        <div className="text-center">
+          <button
+            onClick={() => router.push('/onboarding/restore-code')}
+            className="inline-flex items-center gap-3 text-white text-xl px-8 py-4 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all mb-4"
+            style={{ backgroundColor: '#37B24D' }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2F9E44'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#37B24D'}
+          >
+            Save Your Progress
+            <ArrowRight size={24} />
+          </button>
+          <p className="text-sm" style={{ color: '#666666' }}>
+            Get your restore code to access this on any device
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+

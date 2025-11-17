@@ -1,65 +1,314 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useRouter } from 'next/navigation';
+import { Lock, Shield, Calendar, ArrowRight, Check } from 'lucide-react';
+import { useState } from 'react';
+import PrivacyBadge from '@/components/PrivacyBadge';
+import { initializeUser } from '@/lib/deviceId';
+
+type LifeStage = 'young' | 'midlife' | 'older';
+
+export default function LandingPage() {
+  const router = useRouter();
+  const [selectedStage, setSelectedStage] = useState<LifeStage | null>(null);
+
+  const handleStart = () => {
+    // Initialize user
+    const { deviceID, restoreCode, currency } = initializeUser();
+    console.log('User initialized:', { deviceID, restoreCode, currency });
+    
+    // Navigate to welcome
+    router.push('/onboarding/welcome');
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="min-h-screen" style={{ background: 'linear-gradient(to bottom right, white, #B2F2BB, #74C0FC)' }}>
+      <PrivacyBadge />
+      
+      {/* Header */}
+      <header className="container mx-auto px-4 py-6">
+        <div className="flex items-center justify-between">
+          <div className="text-2xl font-bold" style={{ color: '#37B24D' }}>zdebt</div>
+          <div className="flex items-center gap-2 text-sm" style={{ color: '#000000' }}>
+            <Lock size={16} style={{ color: '#69DB7C' }} />
+            <span>100% Anonymous</span>
+          </div>
+        </div>
+      </header>
+
+      {/* Hero Section */}
+      <section className="container mx-auto px-4 py-12 md:py-20">
+        <div className="max-w-4xl mx-auto text-center">
+          <h1 className="text-4xl md:text-6xl font-bold mb-6" style={{ color: '#000000' }}>
+            When Could You Be
+            <br />
+            <span style={{ color: '#37B24D' }}>Debt-Free?</span>
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          
+          <p className="text-xl md:text-2xl mb-4" style={{ color: '#000000' }}>
+            Get your personalized target date.
+          </p>
+          
+          <p className="text-lg mb-8" style={{ color: '#000000' }}>
+            Anonymous • Private • No signup required
+          </p>
+
+          {/* Privacy USPs */}
+          <div className="flex flex-wrap justify-center gap-3 mb-12">
+            <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm text-sm" style={{ color: '#000000' }}>
+              <Lock size={18} style={{ color: '#69DB7C' }} />
+              <span>No name required</span>
+            </div>
+            <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm text-sm" style={{ color: '#000000' }}>
+              <Shield size={18} style={{ color: '#69DB7C' }} />
+              <span>Data stays on your device</span>
+            </div>
+            <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm text-sm" style={{ color: '#000000' }}>
+              <Calendar size={18} style={{ color: '#4DABF7' }} />
+              <span>See your date in 3 minutes</span>
+            </div>
+          </div>
+
+          {/* Quick Start CTA */}
+          <button
+            onClick={handleStart}
+            className="inline-flex items-center gap-3 text-white text-xl px-8 py-4 rounded-lg font-semibold shadow-lg hover:shadow-xl transition-all mb-8"
+            style={{ backgroundColor: '#37B24D' }}
+          >
+            See Your Date
+            <ArrowRight size={24} />
+          </button>
+          <p className="text-xs" style={{ color: '#000000' }}>
+            For planning purposes only. Not financial advice.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </section>
+
+      {/* Life Stage Selection */}
+      <section className="container mx-auto px-4 py-12">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-bold text-center mb-4" style={{ color: '#000000' }}>
+            Which stage are you at?
+          </h2>
+          <p className="text-center mb-8" style={{ color: '#000000' }}>
+            See how people like you are planning their path forward
+          </p>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* Young Adult */}
+            <div 
+              className={`bg-white rounded-lg p-6 shadow-lg cursor-pointer transition-all hover:shadow-xl ${
+                selectedStage === 'young' ? 'ring-2' : ''
+              }`}
+              style={selectedStage === 'young' ? { borderColor: '#51CF66', borderWidth: '2px' } : {}}
+              onClick={() => setSelectedStage('young')}
+            >
+              <div className="text-4xl mb-4">🎓</div>
+              <h3 className="text-xl font-bold mb-3" style={{ color: '#000000' }}>Starting Out</h3>
+              <p className="text-sm mb-4" style={{ color: '#000000' }}>Ages 22-35</p>
+              
+              <div className="space-y-2 text-sm" style={{ color: '#000000' }}>
+                <p>💳 Student loans and credit cards</p>
+                <p>🚗 Car payments adding up</p>
+                <p>🏠 Wanting to save for a home</p>
+                <p>💍 Planning major life events</p>
+              </div>
+              <div className="mt-6 pt-4 border-t text-sm">
+                <p className="font-semibold mb-2" style={{ color: '#37B24D' }}>Common situation:</p>
+                <p className="italic" style={{ color: '#000000' }}>
+                  "I'm 28, earning £35K. Between student loans, credit cards, 
+                  and my car, I'm paying £680/month. When can I be free?"
+                </p>
+              </div>
+            </div>
+
+            {/* Midlife */}
+            <div 
+              className={`bg-white rounded-lg p-6 shadow-lg cursor-pointer transition-all hover:shadow-xl ${
+                selectedStage === 'midlife' ? 'ring-2' : ''
+              }`}
+              style={selectedStage === 'midlife' ? { borderColor: '#51CF66', borderWidth: '2px' } : {}}
+              onClick={() => setSelectedStage('midlife')}
+            >
+              <div className="text-4xl mb-4">👨‍👩‍👧</div>
+              <h3 className="text-xl font-bold mb-3" style={{ color: '#000000' }}>Building Up</h3>
+              <p className="text-sm mb-4" style={{ color: '#000000' }}>Ages 35-50</p>
+              
+              <div className="space-y-2 text-sm" style={{ color: '#000000' }}>
+                <p>🏡 Mortgage feeling heavy</p>
+                <p>👶 Raising kids, costs rising</p>
+                <p>💼 Career established but stretched</p>
+                <p>⚖️ Balancing multiple priorities</p>
+              </div>
+              <div className="mt-6 pt-4 border-t text-sm">
+                <p className="font-semibold mb-2" style={{ color: '#37B24D' }}>Common situation:</p>
+                <p className="italic" style={{ color: '#000000' }}>
+                  "I'm 42 with two kids. Mortgage, car loans, some credit cards. 
+                  Earning £55K but it disappears. When does it get easier?"
+                </p>
+              </div>
+            </div>
+
+            {/* Older */}
+            <div 
+              className={`bg-white rounded-lg p-6 shadow-lg cursor-pointer transition-all hover:shadow-xl ${
+                selectedStage === 'older' ? 'ring-2' : ''
+              }`}
+              style={selectedStage === 'older' ? { borderColor: '#51CF66', borderWidth: '2px' } : {}}
+              onClick={() => setSelectedStage('older')}
+            >
+              <div className="text-4xl mb-4">🎯</div>
+              <h3 className="text-xl font-bold mb-3" style={{ color: '#000000' }}>Looking Ahead</h3>
+              <p className="text-sm mb-4" style={{ color: '#000000' }}>Ages 50+</p>
+              
+              <div className="space-y-2 text-sm" style={{ color: '#000000' }}>
+                <p>⏰ Time feeling more precious</p>
+                <p>🏖️ Thinking about next chapter</p>
+                <p>💰 Want to clear everything</p>
+                <p>🧘 Peace of mind matters</p>
+              </div>
+              <div className="mt-6 pt-4 border-t text-sm">
+                <p className="font-semibold mb-2" style={{ color: '#37B24D' }}>Common situation:</p>
+                <p className="italic" style={{ color: '#000000' }}>
+                  "I'm 54. Still have mortgage, some old debts. 
+                  Want to retire at 65 completely clear. Is it realistic?"
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* CTA after selection */}
+          {selectedStage && (
+            <div className="text-center mt-8">
+              <button
+                onClick={handleStart}
+                className="inline-flex items-center gap-3 text-white text-lg px-8 py-4 rounded-lg font-semibold hover:shadow-xl transition-all"
+                style={{ backgroundColor: '#37B24D' }}
+              >
+                See Your Debt-Free Date
+                <ArrowRight size={20} />
+              </button>
+            </div>
+          )}
         </div>
-      </main>
+      </section>
+
+      {/* How It Works */}
+      <section className="container mx-auto px-4 py-12 bg-white/50">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-bold text-center mb-12" style={{ color: '#000000' }}>
+            How It Works
+          </h2>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl" style={{ backgroundColor: '#74C0FC' }}>
+                1️⃣
+              </div>
+              <h3 className="font-semibold mb-2" style={{ color: '#000000' }}>Enter Your Numbers</h3>
+              <p className="text-sm" style={{ color: '#000000' }}>
+                Total owed, monthly payments. Takes 2 minutes. No signup.
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl" style={{ backgroundColor: '#74C0FC' }}>
+                2️⃣
+              </div>
+              <h3 className="font-semibold mb-2" style={{ color: '#000000' }}>See Your Date</h3>
+              <p className="text-sm" style={{ color: '#000000' }}>
+                Get your debt-free date. See month-by-month breakdown.
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl" style={{ backgroundColor: '#74C0FC' }}>
+                3️⃣
+              </div>
+              <h3 className="font-semibold mb-2" style={{ color: '#000000' }}>Track Progress (Optional)</h3>
+              <p className="text-sm" style={{ color: '#000000' }}>
+                Update monthly. See how you're doing. Stay motivated.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Privacy Emphasis */}
+      <section className="container mx-auto px-4 py-12">
+        <div className="max-w-3xl mx-auto rounded-lg p-8" style={{ backgroundColor: '#B2F2BB' }}>
+          <h2 className="text-2xl font-bold mb-6 text-center" style={{ color: '#000000' }}>
+            Why People Trust zdebt
+          </h2>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="flex gap-3">
+              <Check className="flex-shrink-0" size={24} style={{ color: '#2F9E44' }} />
+              <div>
+                <p className="font-semibold mb-1" style={{ color: '#000000' }}>No name required</p>
+                <p className="text-sm" style={{ color: '#000000' }}>
+                  We never ask for your name. Ever.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Check className="flex-shrink-0" size={24} style={{ color: '#2F9E44' }} />
+              <div>
+                <p className="font-semibold mb-1" style={{ color: '#000000' }}>Data stays with you</p>
+                <p className="text-sm" style={{ color: '#000000' }}>
+                  Stored on your device. You control it.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Check className="flex-shrink-0" size={24} style={{ color: '#2F9E44' }} />
+              <div>
+                <p className="font-semibold mb-1" style={{ color: '#000000' }}>No credit check</p>
+                <p className="text-sm" style={{ color: '#000000' }}>
+                  Doesn't affect your credit score.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Check className="flex-shrink-0" size={24} style={{ color: '#2F9E44' }} />
+              <div>
+                <p className="font-semibold mb-1" style={{ color: '#000000' }}>Anonymous if hacked</p>
+                <p className="text-sm" style={{ color: '#000000' }}>
+                  Just numbers. No way to identify you.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="container mx-auto px-4 py-16 text-center">
+        <h2 className="text-3xl md:text-4xl font-bold mb-6" style={{ color: '#000000' }}>
+          Ready to See Your Date?
+        </h2>
+        <p className="text-xl mb-8" style={{ color: '#000000' }}>
+          Takes 3 minutes. Completely anonymous.
+        </p>
+        <button
+          onClick={handleStart}
+          className="inline-flex items-center gap-3 text-white text-xl px-8 py-4 rounded-lg font-semibold hover:shadow-xl transition-all"
+          style={{ backgroundColor: '#37B24D' }}
+        >
+          Get Started (Free)
+          <ArrowRight size={24} />
+        </button>
+        <p className="text-sm mt-4" style={{ color: '#000000' }}>
+          No signup • No email • No credit check
+        </p>
+      </section>
+
+      {/* Footer */}
+      <footer className="container mx-auto px-4 py-8 border-t text-center text-sm" style={{ color: '#000000' }}>
+        <p className="mb-2">
+          zdebt • Privacy-first planning tool
+        </p>
+        <p>
+          For planning purposes only. Not financial advice. 
+          Consult a qualified professional for financial decisions.
+        </p>
+      </footer>
     </div>
   );
 }
