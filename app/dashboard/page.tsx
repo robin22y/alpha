@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Calendar, TrendingUp, Target, DollarSign, 
-  Clock, Settings, PlusCircle, BarChart3, Heart, BookOpen, Smartphone, CreditCard
+  Clock, Settings, PlusCircle, BarChart3, Heart, BookOpen, Smartphone, CreditCard, Zap, Sparkles
 } from 'lucide-react';
 import { useUserStore } from '@/store/useUserStore';
 import { formatCurrency, getCurrency } from '@/lib/currency';
@@ -17,6 +17,8 @@ import {
 import PrivacyBadge from '@/components/PrivacyBadge';
 import Navigation from '@/components/Navigation';
 import MilestoneCelebration from '@/components/MilestoneCelebration';
+import { getContextualRecommendations, shouldShowRecommendations, markRecommendationsShown, getRecentlySeenPartners } from '@/lib/recommendationEngine';
+import AffiliateCard from '@/components/AffiliateCard';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -24,6 +26,8 @@ export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   const [showMilestone, setShowMilestone] = useState(false);
   const [celebrateMilestone, setCelebrateMilestone] = useState<any>(null);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [showRecs, setShowRecs] = useState(false);
   
   // Get store data
   const {
@@ -83,6 +87,32 @@ export default function DashboardPage() {
       router.push('/');
     }
   }, [mounted, createdAt, router]);
+
+  // Load contextual recommendations
+  useEffect(() => {
+    if (mounted && createdAt) {
+      const currentWeek = calculateWeekNumber(createdAt);
+      const context = {
+        page: 'dashboard' as const,
+        userWeek: currentWeek,
+        hasSeenRecently: getRecentlySeenPartners()
+      };
+      
+      if (shouldShowRecommendations(context)) {
+        const recs = getContextualRecommendations(
+          { totalDebt, goal, finances },
+          context,
+          2 // Max 2 on dashboard
+        );
+        
+        if (recs.length > 0) {
+          setRecommendations(recs);
+          setShowRecs(true);
+          markRecommendationsShown(recs.map(r => r.id));
+        }
+      }
+    }
+  }, [mounted, createdAt, totalDebt, goal, finances]);
 
   if (!mounted || !createdAt || !currency) {
     return (
@@ -436,6 +466,24 @@ export default function DashboardPage() {
           </button>
 
           <button
+            onClick={() => router.push('/challenge')}
+            className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-lg transition-all" style={{ backgroundColor: '#FEF3C7' }}>
+                  <Zap style={{ color: '#D97706' }} size={28} />
+                </div>
+                <div>
+                  <p className="font-bold text-lg" style={{ color: '#000000' }}>1% Weekly Challenge</p>
+                  <p className="text-sm" style={{ color: '#666666' }}>Optional boost this week</p>
+                </div>
+              </div>
+              <div className="transition-all" style={{ color: '#999999' }}>→</div>
+            </div>
+          </button>
+
+          <button
             onClick={() => router.push('/milestones')}
             className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
           >
@@ -512,6 +560,24 @@ export default function DashboardPage() {
                 <div className="transition-all" style={{ color: '#999999' }}>→</div>
               </div>
             </button>
+
+            <button
+              onClick={() => router.push('/recommendations')}
+              className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 rounded-lg transition-all" style={{ backgroundColor: '#D1FAE5' }}>
+                    <Sparkles style={{ color: '#065F46' }} size={28} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-lg" style={{ color: '#000000' }}>Recommended Tools</p>
+                    <p className="text-sm" style={{ color: '#666666' }}>Services that may help</p>
+                  </div>
+                </div>
+                <div className="transition-all" style={{ color: '#999999' }}>→</div>
+              </div>
+            </button>
           </div>
         </div>
 
@@ -557,6 +623,42 @@ export default function DashboardPage() {
             </button>
           </div>
         </div>
+
+        {/* Contextual Recommendations */}
+        {showRecs && recommendations.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold" style={{ color: '#000000' }}>Tools That May Help</h2>
+              <button
+                onClick={() => router.push('/recommendations')}
+                className="text-sm font-semibold transition-all"
+                style={{ color: '#37B24D' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = '#2F9E44'}
+                onMouseLeave={(e) => e.currentTarget.style.color = '#37B24D'}
+              >
+                View All →
+              </button>
+            </div>
+            
+            <div className="grid md:grid-cols-2 gap-6 mb-4">
+              {recommendations.map((rec) => (
+                <AffiliateCard key={rec.id} partner={rec} />
+              ))}
+            </div>
+            
+            <div className="text-center">
+              <button
+                onClick={() => setShowRecs(false)}
+                className="text-sm underline transition-all"
+                style={{ color: '#666666' }}
+                onMouseEnter={(e) => e.currentTarget.style.color = '#374151'}
+                onMouseLeave={(e) => e.currentTarget.style.color = '#666666'}
+              >
+                Hide recommendations
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Footer message */}
         <div className="text-center text-sm" style={{ color: '#999999' }}>

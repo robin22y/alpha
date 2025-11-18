@@ -6,6 +6,7 @@ import {
   calculateDaysRemaining,
   calculateTimeProgress
 } from '@/lib/progress';
+import type { Challenge } from '@/lib/challenges';
 
 export type GoalType = 
   | 'reduce_stress' 
@@ -101,8 +102,21 @@ interface UserData {
     emoji: string;
   }>;
   
-  // Premium
+  // Challenges
+  challenges: Challenge[];
+  
+  // Admin settings
+  adminSettings?: {
+    extendedTrial: boolean;
+    trialExtensionDays: number;
+    isPremiumOverride: boolean;
+  };
+  
+  // Premium/PRO
   isPremium: boolean;
+  isPro: boolean;
+  proExpiresAt?: string;
+  proSince?: string;
   storageMode: 'local' | 'cloud';
 }
 
@@ -119,6 +133,9 @@ interface UserStore extends UserData {
   updateProgress: () => void;
   addMilestone: (percentage: number, label: string, emoji: string) => void;
   addCheckIn: (checkIn: any) => void;
+  addChallenge: (challenge: Challenge) => void;
+  updateChallenge: (challengeId: string, updates: Partial<Challenge>) => void;
+  setAdminSettings: (settings: Partial<typeof initialState.adminSettings>) => void;
   initializeFromLocalStorage: () => void;
   reset: () => void;
 }
@@ -159,7 +176,16 @@ const initialState: UserData = {
   },
   weeklyCheckIns: [],
   milestonesReached: [],
+  challenges: [],
+  adminSettings: {
+    extendedTrial: false,
+    trialExtensionDays: 0,
+    isPremiumOverride: false
+  },
   isPremium: false,
+  isPro: false,
+  proExpiresAt: undefined,
+  proSince: undefined,
   storageMode: 'local'
 };
 
@@ -303,6 +329,29 @@ export const useUserStore = create<UserStore>()(
         }));
       },
       
+      addChallenge: (challenge) => {
+        set((state) => ({
+          challenges: [...state.challenges, challenge]
+        }));
+      },
+      
+      updateChallenge: (challengeId, updates) => {
+        set((state) => ({
+          challenges: state.challenges.map(c =>
+            c.id === challengeId ? { ...c, ...updates } : c
+          )
+        }));
+      },
+      
+      setAdminSettings: (settings) => {
+        set((state) => ({
+          adminSettings: {
+            ...state.adminSettings!,
+            ...settings
+          }
+        }));
+      },
+      
       initializeFromLocalStorage: () => {
         if (typeof window === 'undefined') return;
         
@@ -340,7 +389,12 @@ export const useUserStore = create<UserStore>()(
         habit: state.habit,
         progress: state.progress,
         weeklyCheckIns: state.weeklyCheckIns,
-        milestonesReached: state.milestonesReached
+        milestonesReached: state.milestonesReached,
+        challenges: state.challenges,
+        adminSettings: state.adminSettings,
+        isPro: state.isPro,
+        proExpiresAt: state.proExpiresAt,
+        proSince: state.proSince
       })
     }
   )

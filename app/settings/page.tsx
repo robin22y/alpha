@@ -4,9 +4,14 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Download, Upload, Trash2, Lock, Database, 
-  Globe, Copy, Check, AlertTriangle, ArrowLeft 
+  Globe, Copy, Check, AlertTriangle, ArrowLeft, Smartphone, Clock
 } from 'lucide-react';
 import { getUserIdentifiers, formatRestoreCode } from '@/lib/deviceId';
+import { 
+  canRequestDeviceTransfer, 
+  processDeviceTransfer,
+  getDeviceTransferRequests 
+} from '@/lib/subscription';
 import { 
   exportToJSON, 
   importFromJSON, 
@@ -27,6 +32,13 @@ export default function SettingsPage() {
   const [copied, setCopied] = useState(false);
   const [selectedCurrency, setSelectedCurrency] = useState<CurrencyCode>('USD');
   const [importing, setImporting] = useState(false);
+  
+  // Device transfer
+  const [showTransferRequest, setShowTransferRequest] = useState(false);
+  const [transferRestoreCode, setTransferRestoreCode] = useState('');
+  const [transferError, setTransferError] = useState('');
+  const [transferSuccess, setTransferSuccess] = useState(false);
+  const [coolingPeriod, setCoolingPeriod] = useState<{ allowed: boolean; daysRemaining?: number } | null>(null);
 
   const identifiers = getUserIdentifiers();
   const currency = getCurrency();
@@ -34,7 +46,13 @@ export default function SettingsPage() {
   useEffect(() => {
     setStorageSize(getStorageSize());
     setSelectedCurrency(currency.code);
-  }, [currency.code]);
+    
+    // Check cooling period
+    if (identifiers.deviceID) {
+      const canTransfer = canRequestDeviceTransfer(identifiers.deviceID);
+      setCoolingPeriod(canTransfer);
+    }
+  }, [currency.code, identifiers.deviceID]);
 
   const handleExport = () => {
     exportToJSON();
@@ -95,6 +113,59 @@ export default function SettingsPage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const handleDeviceTransferRequest = () => {
+    setTransferError('');
+    setTransferSuccess(false);
+    
+    if (!transferRestoreCode || !identifiers.restoreCode) {
+      setTransferError('Please enter your restore code');
+      return;
+    }
+    
+    // Validate restore code matches
+    const cleaned = transferRestoreCode.replace('-', '').toUpperCase();
+    const currentCleaned = identifiers.restoreCode.replace('-', '').toUpperCase();
+    
+    if (cleaned !== currentCleaned) {
+      setTransferError('Restore code does not match. Please check and try again.');
+      return;
+    }
+    
+    if (!identifiers.deviceID) {
+      setTransferError('Device ID not found');
+      return;
+    }
+    
+    // Generate new device ID for transfer
+    const newDeviceID = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+    
+    // Process transfer automatically (includes cooling period check)
+    const result = processDeviceTransfer(
+      identifiers.restoreCode,
+      identifiers.deviceID,
+      newDeviceID
+    );
+    
+    if (!result.success) {
+      setTransferError(result.error || 'Transfer failed');
+      return;
+    }
+    
+    // Update device ID in localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('zdebt_device_id', newDeviceID);
+    }
+    
+    setTransferSuccess(true);
+    setTransferRestoreCode('');
+    setShowTransferRequest(false);
+    
+    // Reload page after a short delay to apply new device ID
+    setTimeout(() => {
+      window.location.reload();
+    }, 1500);
   };
 
   const handleCurrencyChange = (code: CurrencyCode) => {
@@ -249,6 +320,148 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* Device Transfer */}
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Smartphone style={{ color: '#7C3AED' }} size={28} />
+            <h2 className="text-xl font-bold" style={{ color: '#000000' }}>Device Transfer</h2>
+          </div>
+
+          <p className="text-sm mb-4" style={{ color: '#666666' }}>
+            Moving to a new device? Transfer your account automatically by entering your restore code. 
+            One user = one device. A 10-day cooling period applies between transfers.
+          </p>
+
+          {transferSuccess && (
+            <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: '#D1FAE5', borderColor: '#6EE7B7' }}>
+              <p className="text-sm font-semibold" style={{ color: '#065F46' }}>
+                ✓ Device transfer completed successfully!
+              </p>
+              <p className="text-xs mt-1" style={{ color: '#047857' }}>
+                Your account has been transferred to this device. The page will reload shortly.
+              </p>
+            </div>
+          )}
+
+          {coolingPeriod && !coolingPeriod.allowed && (
+            <div className="mb-4 p-4 rounded-lg border-2" style={{ backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }}>
+              <div className="flex items-center gap-2 mb-2">
+                <Clock size={18} style={{ color: '#92400E' }} />
+                <p className="text-sm font-semibold" style={{ color: '#92400E' }}>
+                  Cooling Period Active
+                </p>
+              </div>
+              <p className="text-xs" style={{ color: '#78350F' }}>
+                You can transfer your device in {coolingPeriod.daysRemaining} more day(s).
+              </p>
+            </div>
+          )}
+
+          {!showTransferRequest && coolingPeriod?.allowed && (
+            <button
+              onClick={() => setShowTransferRequest(true)}
+              className="w-full py-3 border-2 rounded-lg font-semibold transition-all flex items-center justify-center gap-2"
+              style={{ borderColor: '#7C3AED', color: '#7C3AED' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#7C3AED';
+                e.currentTarget.style.color = '#FFFFFF';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = '#7C3AED';
+              }}
+            >
+              <Smartphone size={18} />
+              Transfer to This Device
+            </button>
+          )}
+
+          {showTransferRequest && (
+            <div className="border-2 rounded-lg p-4" style={{ borderColor: '#7C3AED', backgroundColor: '#F3F4F6' }}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold" style={{ color: '#000000' }}>Device Transfer</h3>
+                <button
+                  onClick={() => {
+                    setShowTransferRequest(false);
+                    setTransferError('');
+                    setTransferRestoreCode('');
+                  }}
+                  className="p-1 rounded"
+                  style={{ color: '#666666' }}
+                >
+                  <AlertTriangle size={18} />
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-2" style={{ color: '#000000' }}>
+                  Enter Your Restore Code *
+                </label>
+                <p className="text-xs mb-2" style={{ color: '#666666' }}>
+                  This verifies you own the account. Your restore code: {identifiers.restoreCode ? formatRestoreCode(identifiers.restoreCode) : 'N/A'}
+                </p>
+                <input
+                  type="text"
+                  value={transferRestoreCode}
+                  onChange={(e) => {
+                    setTransferRestoreCode(e.target.value);
+                    setTransferError('');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleDeviceTransferRequest();
+                    }
+                  }}
+                  placeholder="ABCD-1234"
+                  className="w-full px-4 py-2 border-2 rounded-lg focus:outline-none font-mono"
+                  style={{ borderColor: '#E5E7EB' }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = '#7C3AED'}
+                  onBlur={(e) => e.currentTarget.style.borderColor = '#E5E7EB'}
+                  autoComplete="off"
+                />
+              </div>
+
+              {transferError && (
+                <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: '#FEE2E2', borderColor: '#FECACA' }}>
+                  <p className="text-sm" style={{ color: '#991B1B' }}>{transferError}</p>
+                </div>
+              )}
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                <p className="text-xs" style={{ color: '#78350F' }}>
+                  <strong>⚠️ Important:</strong> After transfer, your account will be moved to this device. 
+                  You won't be able to access it on the old device anymore. A 10-day cooling period will apply before you can transfer again.
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleDeviceTransferRequest}
+                  className="flex-1 py-2 rounded-lg font-semibold transition-all"
+                  style={{ backgroundColor: '#7C3AED', color: '#FFFFFF' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#6D28D9'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#7C3AED'}
+                >
+                  Transfer Now
+                </button>
+                <button
+                  onClick={() => {
+                    setShowTransferRequest(false);
+                    setTransferError('');
+                    setTransferRestoreCode('');
+                  }}
+                  className="flex-1 py-2 rounded-lg font-semibold transition-all"
+                  style={{ backgroundColor: '#E5E7EB', color: '#374151' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#D1D5DB'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#E5E7EB'}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Data Management */}
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">
@@ -398,11 +611,17 @@ export default function SettingsPage() {
                 type="text"
                 value={deleteInput}
                 onChange={(e) => setDeleteInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && deleteInput.toLowerCase() === 'delete') {
+                    handleDelete();
+                  }
+                }}
                 placeholder="DELETE"
                 className="w-full px-4 py-2 border-2 rounded-lg focus:outline-none"
                 style={{ borderColor: '#D1D5DB' }}
                 onFocus={(e) => e.currentTarget.style.borderColor = '#DC2626'}
                 onBlur={(e) => e.currentTarget.style.borderColor = '#D1D5DB'}
+                autoComplete="off"
               />
             </div>
 

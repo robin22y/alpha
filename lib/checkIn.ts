@@ -111,12 +111,77 @@ export const WEEKLY_STORIES: WeeklyStory[] = [
 ];
 
 /**
+ * Get all stories (from localStorage or default)
+ */
+export function getAllStories(): WeeklyStory[] {
+  if (typeof window === 'undefined') return WEEKLY_STORIES;
+  
+  const stored = localStorage.getItem('zdebt_weekly_stories');
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return WEEKLY_STORIES;
+    }
+  }
+  
+  return WEEKLY_STORIES;
+}
+
+/**
+ * Save stories (admin only)
+ */
+export function saveStories(stories: WeeklyStory[]): void {
+  if (typeof window === 'undefined') return;
+  
+  localStorage.setItem('zdebt_weekly_stories', JSON.stringify(stories));
+}
+
+/**
+ * Add new story
+ */
+export function addStory(story: WeeklyStory): void {
+  const stories = getAllStories();
+  stories.push(story);
+  saveStories(stories);
+}
+
+/**
+ * Update existing story
+ */
+export function updateStory(storyId: string, updates: Partial<WeeklyStory>): void {
+  const stories = getAllStories();
+  const index = stories.findIndex(s => s.id === storyId);
+  
+  if (index !== -1) {
+    stories[index] = { ...stories[index], ...updates };
+    saveStories(stories);
+  }
+}
+
+/**
+ * Delete story
+ */
+export function deleteStory(storyId: string): void {
+  const stories = getAllStories();
+  const filtered = stories.filter(s => s.id !== storyId);
+  saveStories(filtered);
+}
+
+/**
  * Get story for current week
  * Rotates through stories based on week number
  */
 export function getStoryForWeek(weekNumber: number): WeeklyStory {
-  const index = (weekNumber - 1) % WEEKLY_STORIES.length;
-  return WEEKLY_STORIES[index];
+  const stories = getAllStories();
+  if (stories.length === 0) {
+    // Fallback to default if no stories
+    const index = (weekNumber - 1) % WEEKLY_STORIES.length;
+    return WEEKLY_STORIES[index];
+  }
+  
+  const index = (weekNumber - 1) % stories.length;
+  return stories[index];
 }
 
 /**

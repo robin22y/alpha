@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { Lock, Shield, Calendar, ArrowRight, Check } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import PrivacyBadge from '@/components/PrivacyBadge';
 import { initializeUser } from '@/lib/deviceId';
 
@@ -11,6 +11,17 @@ type LifeStage = 'young' | 'midlife' | 'older';
 export default function LandingPage() {
   const router = useRouter();
   const [selectedStage, setSelectedStage] = useState<LifeStage | null>(null);
+
+  // Hidden admin access: long press counter
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pressCountRef = useRef(0);
+  const lastPressTimeRef = useRef(0);
+  const isLongPressingRef = useRef(false);
+  const pressStartTimeRef = useRef(0);
+  const isPressingRef = useRef(false);
+  const LONG_PRESS_DURATION = 2000; // 2 seconds
+  const REQUIRED_PRESSES = 3;
+  const PRESS_WINDOW = 5000; // 5 seconds to complete all presses
 
   const handleStart = () => {
     // Initialize user
@@ -21,6 +32,76 @@ export default function LandingPage() {
     router.push('/onboarding/welcome');
   };
 
+  // Hidden admin access handler
+  const handleLongPressStart = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const now = Date.now();
+    pressStartTimeRef.current = now;
+    isPressingRef.current = true;
+    
+    // Reset if too much time passed since last press
+    if (lastPressTimeRef.current > 0 && now - lastPressTimeRef.current > PRESS_WINDOW) {
+      pressCountRef.current = 0;
+    }
+    
+    // Start timer for long press detection
+    longPressTimerRef.current = setTimeout(() => {
+      // Check if we're still pressing
+      if (isPressingRef.current) {
+        // Long press completed!
+        pressCountRef.current++;
+        lastPressTimeRef.current = Date.now();
+        
+        console.log(`Long press ${pressCountRef.current} of ${REQUIRED_PRESSES} detected`);
+        
+        // Check if we've reached the required number of presses
+        if (pressCountRef.current >= REQUIRED_PRESSES) {
+          // Reset counter
+          pressCountRef.current = 0;
+          lastPressTimeRef.current = 0;
+          isLongPressingRef.current = true;
+          isPressingRef.current = false;
+          
+          console.log('Admin access triggered!');
+          
+          // Navigate to admin (password screen will show)
+          router.push('/admin');
+          
+          // Reset flag after navigation
+          setTimeout(() => {
+            isLongPressingRef.current = false;
+          }, 1000);
+        }
+      }
+    }, LONG_PRESS_DURATION);
+  };
+
+  const handleLongPressEnd = (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    isPressingRef.current = false;
+    
+    // Clear timer if user releases before long press completes
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+    };
+  }, []);
+
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(to bottom right, white, #B2F2BB, #74C0FC)' }}>
       <PrivacyBadge />
@@ -28,7 +109,29 @@ export default function LandingPage() {
       {/* Header */}
       <header className="container mx-auto px-4 py-6">
         <div className="flex items-center justify-between">
-          <div className="text-2xl font-bold" style={{ color: '#37B24D' }}>zdebt</div>
+          <button
+            onMouseDown={(e) => {
+              handleLongPressStart(e);
+            }}
+            onMouseUp={(e) => {
+              handleLongPressEnd(e);
+            }}
+            onTouchStart={(e) => {
+              handleLongPressStart(e);
+            }}
+            onTouchEnd={(e) => {
+              handleLongPressEnd(e);
+            }}
+            className="text-2xl font-bold transition-all cursor-pointer"
+            style={{ color: '#37B24D' }}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#2F9E44'}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#37B24D';
+              handleLongPressEnd();
+            }}
+          >
+            zdebt
+          </button>
           <div className="flex items-center gap-2 text-sm" style={{ color: '#000000' }}>
             <Lock size={16} style={{ color: '#69DB7C' }} />
             <span>100% Anonymous</span>
@@ -145,8 +248,8 @@ export default function LandingPage() {
                 <p className="italic" style={{ color: '#000000' }}>
                   "I'm 42 with two kids. Mortgage, car loans, some credit cards. 
                   Earning £55K but it disappears. When does it get easier?"
-                </p>
-              </div>
+          </p>
+        </div>
             </div>
 
             {/* Older */}
