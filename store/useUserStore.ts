@@ -21,9 +21,19 @@ export interface DebtItem {
   id: string;
   type: string;
   name: string;
+  debtType?: 'credit_card' | 'personal_loan' | 'car_loan' | 'student_loan' | 'mortgage';
   balance: number;
   interestRate: number;
   monthlyPayment: number;
+  monthsToPayoff?: number;
+  // For loans (personal/car/student)
+  loanAmount?: number;
+  loanTermYears?: number;
+  // For mortgage
+  homePrice?: number;
+  downPayment?: number;
+  mortgageTermYears?: number;
+  startDate?: string;
 }
 
 interface UserData {
@@ -239,8 +249,15 @@ export const useUserStore = create<UserStore>()(
       
       calculateTotals: () => {
         const state = get();
-        const totalDebt = state.debts.reduce((sum, debt) => sum + debt.balance, 0);
-        const totalMonthlyPayment = state.debts.reduce((sum, debt) => sum + debt.monthlyPayment, 0);
+        const totalDebt = state.debts.reduce((sum, debt) => {
+          if (debt.debtType === 'mortgage') {
+            return sum + (debt.loanAmount || debt.balance || 0);
+          } else if (debt.debtType === 'personal_loan' || debt.debtType === 'car_loan' || debt.debtType === 'student_loan') {
+            return sum + (debt.loanAmount || debt.balance || 0);
+          }
+          return sum + (debt.balance || 0);
+        }, 0);
+        const totalMonthlyPayment = state.debts.reduce((sum, debt) => sum + (debt.monthlyPayment || 0), 0);
         
         set({ totalDebt, totalMonthlyPayment });
       },

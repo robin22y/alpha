@@ -25,16 +25,44 @@ export default function ResultsPage() {
   const debts = useUserStore((state) => state.debts);
   const goal = useUserStore((state) => state.goal);
   const timeline = useUserStore((state) => state.timeline);
+  const calculateTotals = useUserStore((state) => state.calculateTotals);
+  const initializeFromLocalStorage = useUserStore((state) => state.initializeFromLocalStorage);
 
   useEffect(() => {
+    // Initialize from localStorage first
+    initializeFromLocalStorage();
+    // Recalculate totals to ensure they're up to date
+    calculateTotals();
     setCurrency(getCurrency());
+  }, [initializeFromLocalStorage, calculateTotals]);
+
+  // Recalculate totals whenever debts change
+  useEffect(() => {
+    if (debts.length > 0) {
+      calculateTotals();
+    }
+  }, [debts.length, calculateTotals]);
+
+  useEffect(() => {
     // Debug: log current state
     console.log('Results page - Total debt:', totalDebt);
     console.log('Results page - Total monthly payment:', totalMonthlyPayment);
-    console.log('Results page - Debts:', useUserStore.getState().debts);
-  }, [totalDebt, totalMonthlyPayment]);
+    console.log('Results page - Debts:', debts);
+    console.log('Results page - Debts count:', debts.length);
+    // Log each debt's details
+    debts.forEach((debt, idx) => {
+      console.log(`Debt ${idx + 1}:`, {
+        name: debt.name,
+        debtType: debt.debtType,
+        balance: debt.balance,
+        loanAmount: debt.loanAmount,
+        monthlyPayment: debt.monthlyPayment
+      });
+    });
+  }, [totalDebt, totalMonthlyPayment, debts]);
 
-  const hasDebt = totalDebt > 0;
+  // Check if there are debts by looking at the debts array and totalDebt
+  const hasDebt = debts.length > 0 && totalDebt > 0;
   
   // Calculate projections
   const incomeBreakdown = calculateIncomeBreakdown(finances.monthlyIncome);
@@ -252,7 +280,7 @@ export default function ResultsPage() {
               </div>
             )}
           </div>
-        ) : totalDebt === 0 ? (
+        ) : (debts.length === 0 || totalDebt === 0) ? (
           <div className="bg-white rounded-lg shadow-lg p-6 md:p-8 mb-6">
             <h2 className="text-2xl font-bold mb-6 flex items-center gap-2" style={{ color: '#000000' }}>
               <Calendar style={{ color: '#51CF66' }} />
