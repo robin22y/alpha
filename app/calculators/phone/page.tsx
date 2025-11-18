@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Smartphone, TrendingUp, CreditCard, AlertTriangle, CheckCircle } from 'lucide-react';
 import { 
-  POPULAR_PHONES, 
+  getAllPhones,
   TYPICAL_CREDIT_RATES,
   compareOptions,
   formatMonthsAsYearsMonths,
@@ -35,7 +35,9 @@ export default function PhoneCalculatorPage() {
     }
   }, [phonePrice, monthlySavings, creditAPR, monthlyPayment, currency]);
 
-  const handlePhoneSelect = (phone: typeof POPULAR_PHONES[0]) => {
+  const popularPhones = getAllPhones();
+  
+  const handlePhoneSelect = (phone: typeof popularPhones[0]) => {
     setPhonePrice(phone.price);
     setSelectedPhone(`${phone.brand} ${phone.model}`);
   };
@@ -101,7 +103,7 @@ export default function PhoneCalculatorPage() {
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-2" style={{ color: '#000000' }}>Popular Models</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {POPULAR_PHONES.map((phone) => (
+                  {popularPhones.map((phone) => (
                     <button
                       key={`${phone.brand}-${phone.model}`}
                       onClick={() => handlePhoneSelect(phone)}

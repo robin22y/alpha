@@ -1,4 +1,5 @@
 import { initializeCurrency } from './currency';
+import { registerDevice } from './supabaseDevices';
 
 /**
  * Generate device ID for internal tracking
@@ -95,6 +96,11 @@ export function initializeUser(): {
   localStorage.setItem('zdebt_restore_code', restoreCode);
   localStorage.setItem('zdebt_created_at', new Date().toISOString());
   localStorage.setItem('zdebt_storage_mode', 'local'); // 'local' or 'cloud'
+  
+  // Register device in Supabase (non-blocking, falls back gracefully)
+  registerDevice(deviceID, restoreCode, currency).catch(err => {
+    console.warn('Failed to register device in Supabase (continuing with localStorage):', err);
+  });
   
   return { deviceID, restoreCode, currency };
 }

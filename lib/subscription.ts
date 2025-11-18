@@ -1,6 +1,18 @@
 /**
  * Subscription and Device Transfer Management
+ * Syncs with Supabase when available, falls back to localStorage
  */
+
+import {
+  syncSubscriptionToSupabase,
+  getSubscriptionFromSupabase,
+  getSubscriptionByRestoreCodeFromSupabase,
+  getAllSubscriptionsFromSupabase,
+  syncTransferRequestToSupabase,
+  getAllTransferRequestsFromSupabase
+} from './supabaseSubscriptions';
+import { isSupabaseConfigured } from './supabase';
+import { getDeviceByRestoreCode } from './supabaseDevices';
 
 export interface SubscriptionStatus {
   deviceID: string;
@@ -31,8 +43,42 @@ export interface DeviceTransferRequest {
 
 /**
  * Get all subscriptions (admin only)
+ * Checks Supabase first, falls back to localStorage
  */
-export function getAllSubscriptions(): SubscriptionStatus[] {
+export async function getAllSubscriptions(): Promise<SubscriptionStatus[]> {
+  if (typeof window === 'undefined') return [];
+  
+  // Try Supabase first if configured
+  if (isSupabaseConfigured()) {
+    try {
+      const supabaseSubs = await getAllSubscriptionsFromSupabase();
+      if (supabaseSubs.length > 0) {
+        // Also sync to localStorage for offline access
+        saveSubscriptions(supabaseSubs);
+        return supabaseSubs;
+      }
+    } catch (error) {
+      console.warn('Failed to get subscriptions from Supabase, using localStorage:', error);
+    }
+  }
+  
+  // Fallback to localStorage
+  const stored = localStorage.getItem('zdebt_subscriptions');
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return [];
+    }
+  }
+  
+  return [];
+}
+
+/**
+ * Synchronous version for backward compatibility
+ */
+export function getAllSubscriptionsSync(): SubscriptionStatus[] {
   if (typeof window === 'undefined') return [];
   
   const stored = localStorage.getItem('zdebt_subscriptions');
@@ -74,48 +120,90 @@ export function isDevicePro(deviceID: string): boolean {
 
 /**
  * Set PRO status for device
+ * Syncs to Supabase when available
  */
-export function setProStatus(deviceID: string, restoreCode: string, isPro: boolean): void {
-  const subscriptions = getAllSubscriptions();
+export async function setProStatus(deviceID: string, restoreCode: string, isPro: boolean): Promise<void> {
+  const subscriptions = getAllSubscriptionsSync();
   const existing = subscriptions.findIndex(s => s.deviceID === deviceID);
+  
+  let subscription: SubscriptionStatus;
   
   if (existing !== -1) {
     subscriptions[existing].isPro = isPro;
     if (isPro && !subscriptions[existing].proSince) {
       subscriptions[existing].proSince = new Date().toISOString();
     }
+    subscription = subscriptions[existing];
   } else {
-    subscriptions.push({
+    subscription = {
       deviceID,
       restoreCode,
       isPro,
       proSince: isPro ? new Date().toISOString() : undefined,
       deviceTransferHistory: []
-    });
+    };
+    subscriptions.push(subscription);
   }
   
+  // Save to localStorage
   saveSubscriptions(subscriptions);
+  
+  // Sync to Supabase (non-blocking)
+  if (isSupabaseConfigured()) {
+    syncSubscriptionToSupabase(subscription).catch(err => {
+      console.warn('Failed to sync subscription to Supabase:', err);
+    });
+  }
 }
 
 /**
  * Set PRO status by restore code only (admin function)
  * Finds subscription by restore code and grants/revokes PRO access
+ * Checks Supabase first, falls back to localStorage
  */
-export function setProStatusByRestoreCode(restoreCode: string, isPro: boolean): { success: boolean; error?: string; deviceID?: string } {
-  const subscriptions = getAllSubscriptions();
-  
+export async function setProStatusByRestoreCode(restoreCode: string, isPro: boolean): Promise<{ success: boolean; error?: string; deviceID?: string }> {
   // Normalize restore code (remove dashes, uppercase)
   const normalizedCode = restoreCode.replace('-', '').toUpperCase();
   
-  // Find subscription by restore code
-  const existing = subscriptions.find(s => 
-    s.restoreCode.replace('-', '').toUpperCase() === normalizedCode
-  );
+  let existing: SubscriptionStatus | null = null;
+  
+  // Try Supabase first if configured
+  if (isSupabaseConfigured()) {
+    try {
+      existing = await getSubscriptionByRestoreCodeFromSupabase(restoreCode);
+      
+      // If no subscription found, check if device exists and create subscription
+      if (!existing) {
+        const device = await getDeviceByRestoreCode(restoreCode);
+        if (device) {
+          // Device exists but no subscription - create one
+          existing = {
+            deviceID: device.device_id,
+            restoreCode: device.restore_code,
+            isPro: false,
+            deviceTransferHistory: []
+          };
+          // Save it to Supabase
+          await syncSubscriptionToSupabase(existing);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to get subscription from Supabase, checking localStorage:', error);
+    }
+  }
+  
+  // Fallback to localStorage
+  if (!existing) {
+    const subscriptions = getAllSubscriptionsSync();
+    existing = subscriptions.find(s => 
+      s.restoreCode.replace('-', '').toUpperCase() === normalizedCode
+    ) || null;
+  }
   
   if (!existing) {
     return { 
       success: false, 
-      error: 'No subscription found with this restore code. User may need to sign up first.' 
+      error: 'No device found with this restore code. User may need to sign up first.' 
     };
   }
   
@@ -125,7 +213,22 @@ export function setProStatusByRestoreCode(restoreCode: string, isPro: boolean): 
     existing.proSince = new Date().toISOString();
   }
   
+  // Save to localStorage
+  const subscriptions = getAllSubscriptionsSync();
+  const index = subscriptions.findIndex(s => s.deviceID === existing!.deviceID);
+  if (index !== -1) {
+    subscriptions[index] = existing;
+  } else {
+    subscriptions.push(existing);
+  }
   saveSubscriptions(subscriptions);
+  
+  // Sync to Supabase (non-blocking)
+  if (isSupabaseConfigured()) {
+    syncSubscriptionToSupabase(existing).catch(err => {
+      console.warn('Failed to sync subscription to Supabase:', err);
+    });
+  }
   
   return { 
     success: true, 
@@ -408,9 +511,24 @@ export function getProUsers(): SubscriptionStatus[] {
 /**
  * Sync PRO status from subscription system to user store
  * Call this when user logs in or when admin grants PRO access
+ * Checks Supabase first, then localStorage
  */
-export function syncProStatusToStore(deviceID: string): { isPro: boolean; proExpiresAt?: string; proSince?: string } {
-  const subscription = getSubscription(deviceID);
+export async function syncProStatusToStore(deviceID: string): Promise<{ isPro: boolean; proExpiresAt?: string; proSince?: string }> {
+  let subscription: SubscriptionStatus | null = null;
+  
+  // Try Supabase first if configured
+  if (isSupabaseConfigured()) {
+    try {
+      subscription = await getSubscriptionFromSupabase(deviceID);
+    } catch (error) {
+      console.warn('Failed to get subscription from Supabase, checking localStorage:', error);
+    }
+  }
+  
+  // Fallback to localStorage
+  if (!subscription) {
+    subscription = getSubscription(deviceID);
+  }
   
   if (!subscription) {
     return { isPro: false };
@@ -426,8 +544,17 @@ export function syncProStatusToStore(deviceID: string): { isPro: boolean; proExp
         parsed.state.proExpiresAt = subscription.proExpiresAt;
         parsed.state.proSince = subscription.proSince;
         localStorage.setItem('zdebt_user_store', JSON.stringify(parsed));
-      } catch {
-        // If parsing fails, just update the subscription
+        
+        // Also update the Zustand store if it's already initialized
+        // This triggers a re-render
+        const { useUserStore } = await import('@/store/useUserStore');
+        useUserStore.setState({
+          isPro: subscription.isPro,
+          proExpiresAt: subscription.proExpiresAt,
+          proSince: subscription.proSince
+        });
+      } catch (error) {
+        console.warn('Failed to update store:', error);
       }
     }
   }

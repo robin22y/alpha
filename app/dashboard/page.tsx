@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Calendar, TrendingUp, Target, DollarSign, 
-  Clock, Settings, PlusCircle, BarChart3, Heart, BookOpen, Smartphone, CreditCard, Zap, Sparkles, Download
+  Clock, Settings, PlusCircle, BarChart3, Heart, BookOpen, Smartphone, CreditCard, Zap, Sparkles, Download, Crown
 } from 'lucide-react';
 import { useUserStore } from '@/store/useUserStore';
 import { formatCurrency, getCurrency } from '@/lib/currency';
@@ -14,7 +14,9 @@ import {
   getWeeklyMessage,
   checkForNewMilestone
 } from '@/lib/progress';
-import { canUseFeature } from '@/lib/proFeatures';
+import { canUseFeature, hasProAccess } from '@/lib/proFeatures';
+import { syncProStatusToStore } from '@/lib/subscription';
+import { getUserIdentifiers } from '@/lib/deviceId';
 import dynamic from 'next/dynamic';
 import PrivacyBadge from '@/components/PrivacyBadge';
 import Navigation from '@/components/Navigation';
@@ -52,19 +54,38 @@ export default function DashboardPage() {
   const proExpiresAt = useUserStore((state) => state.proExpiresAt);
   const adminSettings = useUserStore((state) => state.adminSettings);
 
-  // Initialize on mount
+  // Initialize on mount - only run once
   useEffect(() => {
     setCurrency(getCurrency());
     initializeFromLocalStorage();
     setMounted(true);
-  }, [initializeFromLocalStorage]);
+    
+    // Sync PRO status from Supabase
+    const identifiers = getUserIdentifiers();
+    if (identifiers.deviceID) {
+      syncProStatusToStore(identifiers.deviceID).then((proStatus) => {
+        // Update store with synced PRO status
+        const store = useUserStore.getState();
+        useUserStore.setState({
+          ...store,
+          isPro: proStatus.isPro,
+          proExpiresAt: proStatus.proExpiresAt,
+          proSince: proStatus.proSince
+        });
+      }).catch(err => {
+        console.warn('Failed to sync PRO status:', err);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   // Update progress on mount and when data changes
   useEffect(() => {
     if (mounted && createdAt) {
       updateProgress();
     }
-  }, [mounted, createdAt, timeline, updateProgress]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, createdAt, timeline?.months, timeline?.targetDate]); // Only depend on actual values, not functions
 
   // Check for milestone after updating progress
   useEffect(() => {
@@ -87,7 +108,8 @@ export default function DashboardPage() {
         );
       }
     }
-  }, [mounted, createdAt, progress.timeProgressPercentage, progress.lastMilestonePercentage, addMilestone]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, createdAt, progress.timeProgressPercentage, progress.lastMilestonePercentage]); // Remove function from deps
 
   // Redirect if not initialized
   useEffect(() => {
@@ -140,6 +162,9 @@ export default function DashboardPage() {
   const hasDebt = totalDebt > 0;
   const hasHabit = habit.committed;
   const habitAmount = habit.customAmount || habit.onePercentAmount || 0;
+  
+  // Check PRO status
+  const hasPro = createdAt ? hasProAccess({ createdAt, isPro, proExpiresAt, adminSettings }) : false;
 
   return (
     <>
@@ -151,9 +176,17 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold mb-2" style={{ color: '#000000' }}>
-              Your Dashboard
-            </h1>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-3xl md:text-4xl font-bold" style={{ color: '#000000' }}>
+                Your Dashboard
+              </h1>
+              {hasPro && (
+                <div className="flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold" style={{ backgroundColor: '#FFD700', color: '#000000' }}>
+                  <Crown size={16} />
+                  <span>PRO</span>
+                </div>
+              )}
+            </div>
             <p style={{ color: '#666666' }}>
               {weeklyMessage}
             </p>

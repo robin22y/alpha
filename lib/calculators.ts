@@ -152,18 +152,136 @@ export function formatMonthsAsYearsMonths(months: number): string {
 }
 
 /**
- * Get popular phone models with prices (UK market)
+ * Phone model interface
  */
-export const POPULAR_PHONES = [
-  { brand: 'iPhone', model: '16 Pro', price: 999 },
-  { brand: 'iPhone', model: '16', price: 799 },
-  { brand: 'Samsung', model: 'Galaxy S24', price: 799 },
-  { brand: 'Google', model: 'Pixel 9', price: 699 },
-  { brand: 'OnePlus', model: '12', price: 649 },
-  { brand: 'Nothing', model: 'Phone (2)', price: 579 },
-  { brand: 'Samsung', model: 'Galaxy A55', price: 439 },
-  { brand: 'Google', model: 'Pixel 8a', price: 499 }
+export interface PhoneModel {
+  id: string;
+  brand: string;
+  model: string;
+  price: number;
+}
+
+/**
+ * Default popular phone models with prices (UK market)
+ */
+export const DEFAULT_PHONES: PhoneModel[] = [
+  { id: 'iphone-16-pro', brand: 'iPhone', model: '16 Pro', price: 999 },
+  { id: 'iphone-16', brand: 'iPhone', model: '16', price: 799 },
+  { id: 'samsung-s24', brand: 'Samsung', model: 'Galaxy S24', price: 799 },
+  { id: 'google-pixel-9', brand: 'Google', model: 'Pixel 9', price: 699 },
+  { id: 'oneplus-12', brand: 'OnePlus', model: '12', price: 649 },
+  { id: 'nothing-phone-2', brand: 'Nothing', model: 'Phone (2)', price: 579 },
+  { id: 'samsung-a55', brand: 'Samsung', model: 'Galaxy A55', price: 439 },
+  { id: 'google-pixel-8a', brand: 'Google', model: 'Pixel 8a', price: 499 }
 ];
+
+/**
+ * Get custom phones from localStorage
+ */
+export function getCustomPhones(): PhoneModel[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem('zdebt_custom_phones');
+    if (!stored) return [];
+    return JSON.parse(stored);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Save custom phones to localStorage
+ */
+export function saveCustomPhones(phones: PhoneModel[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem('zdebt_custom_phones', JSON.stringify(phones));
+  } catch (error) {
+    console.error('Failed to save custom phones:', error);
+  }
+}
+
+/**
+ * Get all phones (custom + default)
+ * Custom phones override defaults if they have the same ID
+ */
+export function getAllPhones(): PhoneModel[] {
+  const customPhones = getCustomPhones();
+  if (customPhones.length === 0) {
+    return DEFAULT_PHONES;
+  }
+  
+  // Merge: custom phones override defaults
+  const phoneMap = new Map<string, PhoneModel>();
+  
+  // Add defaults first
+  DEFAULT_PHONES.forEach(phone => {
+    phoneMap.set(phone.id, phone);
+  });
+  
+  // Override with custom phones
+  customPhones.forEach(phone => {
+    phoneMap.set(phone.id, phone);
+  });
+  
+  return Array.from(phoneMap.values());
+}
+
+/**
+ * Add a custom phone
+ */
+export function addCustomPhone(phone: Omit<PhoneModel, 'id'>): PhoneModel {
+  const customPhones = getCustomPhones();
+  const newPhone: PhoneModel = {
+    ...phone,
+    id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+  };
+  customPhones.push(newPhone);
+  saveCustomPhones(customPhones);
+  return newPhone;
+}
+
+/**
+ * Update a custom phone
+ */
+export function updateCustomPhone(id: string, updates: Partial<PhoneModel>): boolean {
+  const customPhones = getCustomPhones();
+  const index = customPhones.findIndex(p => p.id === id);
+  if (index === -1) return false;
+  
+  customPhones[index] = { ...customPhones[index], ...updates };
+  saveCustomPhones(customPhones);
+  return true;
+}
+
+/**
+ * Delete a custom phone
+ */
+export function deleteCustomPhone(id: string): boolean {
+  const customPhones = getCustomPhones();
+  const filtered = customPhones.filter(p => p.id !== id);
+  if (filtered.length === customPhones.length) return false;
+  
+  saveCustomPhones(filtered);
+  return true;
+}
+
+/**
+ * Reset to default phones
+ */
+export function resetToDefaultPhones(): void {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem('zdebt_custom_phones');
+}
+
+/**
+ * Get popular phone models (for backward compatibility)
+ * Note: This is now a function call - use getAllPhones() directly for better performance
+ * @deprecated Use getAllPhones() instead
+ */
+export function getPopularPhones() {
+  return getAllPhones();
+}
 
 /**
  * Typical credit card APRs in UK

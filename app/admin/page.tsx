@@ -16,6 +16,15 @@ import {
 } from '@/lib/affiliates';
 import { getAllStories, saveStories, addStory, updateStory, deleteStory, WeeklyStory } from '@/lib/checkIn';
 import { 
+  getAllPhones, 
+  DEFAULT_PHONES,
+  addCustomPhone, 
+  updateCustomPhone, 
+  deleteCustomPhone, 
+  resetToDefaultPhones,
+  PhoneModel 
+} from '@/lib/calculators';
+import { 
   getAllSubscriptions, 
   getProUsers, 
   setProStatus,
@@ -80,6 +89,16 @@ export default function AdminPage() {
   const [newRestoreCode, setNewRestoreCode] = useState('');
   const [newRestoreCodeOnly, setNewRestoreCodeOnly] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
+  
+  // Phone management
+  const [phones, setPhones] = useState<PhoneModel[]>(getAllPhones());
+  const [editingPhone, setEditingPhone] = useState<PhoneModel | null>(null);
+  const [isAddingPhone, setIsAddingPhone] = useState(false);
+  const [newPhone, setNewPhone] = useState<Partial<PhoneModel>>({
+    brand: '',
+    model: '',
+    price: 0
+  });
 
   useEffect(() => {
     if (adminSettings) {
@@ -89,14 +108,16 @@ export default function AdminPage() {
     }
   }, [adminSettings]);
 
-  // Load published affiliates, stories, and subscriptions
+  // Load published affiliates, stories, subscriptions, and phones
   useEffect(() => {
     if (authenticated) {
       setPublishedIds(getPublishedAffiliateIds());
       setStories(getAllStories());
-      setSubscriptions(getAllSubscriptions());
+      // Load subscriptions async
+      getAllSubscriptions().then(subs => setSubscriptions(subs));
       setTransferRequests(getDeviceTransferRequests());
       setAllPartners(getAllPartners());
+      setPhones(getAllPhones());
     }
   }, [authenticated]);
 
@@ -269,17 +290,83 @@ export default function AdminPage() {
     });
   };
 
-  // Subscription management functions
-  const handleSetProStatus = (deviceID: string, restoreCode: string, isPro: boolean) => {
-    setProStatus(deviceID, restoreCode, isPro);
-    setSubscriptions(getAllSubscriptions());
+  // Phone management functions
+  const handleAddPhone = () => {
+    if (!newPhone.brand || !newPhone.model || !newPhone.price || newPhone.price <= 0) {
+      alert('Please fill in all fields with valid values');
+      return;
+    }
+    
+    addCustomPhone({
+      brand: newPhone.brand!,
+      model: newPhone.model!,
+      price: newPhone.price!
+    });
+    setPhones(getAllPhones());
+    setIsAddingPhone(false);
+    setNewPhone({ brand: '', model: '', price: 0 });
   };
 
-  const handleApproveTransfer = (requestId: string) => {
+  const handleUpdatePhone = () => {
+    if (!editingPhone) return;
+    
+    // Check if it's a default phone (update creates a custom override)
+    const isDefault = DEFAULT_PHONES.some(p => p.id === editingPhone.id);
+    if (isDefault) {
+      // Create a custom phone with same ID to override
+      updateCustomPhone(editingPhone.id, editingPhone);
+    } else {
+      updateCustomPhone(editingPhone.id, editingPhone);
+    }
+    setPhones(getAllPhones());
+    setEditingPhone(null);
+  };
+
+  const handleDeletePhone = (phoneId: string) => {
+    const isDefault = DEFAULT_PHONES.some(p => p.id === phoneId);
+    if (isDefault) {
+      alert('Cannot delete default phones. You can edit them to override.');
+      return;
+    }
+    
+    if (confirm('Are you sure you want to delete this phone model?')) {
+      deleteCustomPhone(phoneId);
+      setPhones(getAllPhones());
+    }
+  };
+
+  const startEditingPhone = (phone: PhoneModel) => {
+    setEditingPhone({ ...phone });
+    setIsAddingPhone(false);
+  };
+
+  const startAddingPhone = () => {
+    setIsAddingPhone(true);
+    setEditingPhone(null);
+    setNewPhone({ brand: '', model: '', price: 0 });
+  };
+
+  const handleResetPhones = () => {
+    if (confirm('Reset all phones to default? This will remove all custom phones.')) {
+      resetToDefaultPhones();
+      setPhones(getAllPhones());
+      alert('Phones reset to default');
+    }
+  };
+
+  // Subscription management functions
+  const handleSetProStatus = async (deviceID: string, restoreCode: string, isPro: boolean) => {
+    await setProStatus(deviceID, restoreCode, isPro);
+    const subs = await getAllSubscriptions();
+    setSubscriptions(subs);
+  };
+
+  const handleApproveTransfer = async (requestId: string) => {
     const result = approveDeviceTransfer(requestId, 'admin');
     if (result.success) {
       setTransferRequests(getDeviceTransferRequests());
-      setSubscriptions(getAllSubscriptions());
+      const subs = await getAllSubscriptions();
+      setSubscriptions(subs);
       alert('Transfer approved successfully!');
     } else {
       alert(`Error: ${result.error}`);
@@ -908,6 +995,257 @@ export default function AdminPage() {
             </div>
           </div>
 
+          {/* Phone Models Management */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <Smartphone style={{ color: '#2563EB' }} size={24} />
+                <h2 className="text-xl font-bold" style={{ color: '#000000' }}>Phone Models</h2>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleResetPhones}
+                  className="px-4 py-2 rounded font-semibold transition-all text-sm"
+                  style={{ backgroundColor: '#E5E7EB', color: '#374151' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#D1D5DB'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#E5E7EB'}
+                >
+                  Reset to Default
+                </button>
+                <button
+                  onClick={startAddingPhone}
+                  className="px-4 py-2 rounded font-semibold transition-all flex items-center gap-2"
+                  style={{ backgroundColor: '#2563EB', color: '#FFFFFF' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1D4ED8'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2563EB'}
+                >
+                  <Plus size={16} />
+                  Add Phone
+                </button>
+              </div>
+            </div>
+
+            <p className="mb-4 text-sm" style={{ color: '#666666' }}>
+              Manage phone models shown in the Dream Phone Calculator. Edit default phones or add custom models.
+            </p>
+
+            {/* Add New Phone Form */}
+            {isAddingPhone && (
+              <div className="mb-6 p-6 rounded-lg border-2" style={{ backgroundColor: '#F3F4F6', borderColor: '#2563EB' }}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold" style={{ color: '#000000' }}>Add New Phone</h3>
+                  <button
+                    onClick={() => setIsAddingPhone(false)}
+                    className="p-1 rounded"
+                    style={{ color: '#666666' }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = '#374151'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = '#666666'}
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1" style={{ color: '#000000' }}>Brand *</label>
+                    <input
+                      type="text"
+                      value={newPhone.brand || ''}
+                      onChange={(e) => setNewPhone({ ...newPhone, brand: e.target.value })}
+                      placeholder="iPhone"
+                      className="w-full px-3 py-2 border-2 rounded-lg focus:outline-none"
+                      style={{ borderColor: '#E5E7EB' }}
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#2563EB'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#E5E7EB'}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1" style={{ color: '#000000' }}>Model *</label>
+                    <input
+                      type="text"
+                      value={newPhone.model || ''}
+                      onChange={(e) => setNewPhone({ ...newPhone, model: e.target.value })}
+                      placeholder="16 Pro"
+                      className="w-full px-3 py-2 border-2 rounded-lg focus:outline-none"
+                      style={{ borderColor: '#E5E7EB' }}
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#2563EB'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#E5E7EB'}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1" style={{ color: '#000000' }}>Price ($) *</label>
+                    <input
+                      type="number"
+                      value={newPhone.price || 0}
+                      onChange={(e) => setNewPhone({ ...newPhone, price: parseFloat(e.target.value) || 0 })}
+                      placeholder="999"
+                      className="w-full px-3 py-2 border-2 rounded-lg focus:outline-none"
+                      style={{ borderColor: '#E5E7EB' }}
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#2563EB'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#E5E7EB'}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={handleAddPhone}
+                    className="px-4 py-2 rounded font-semibold transition-all flex items-center gap-2"
+                    style={{ backgroundColor: '#2563EB', color: '#FFFFFF' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1D4ED8'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2563EB'}
+                  >
+                    <Save size={16} />
+                    Add Phone
+                  </button>
+                  <button
+                    onClick={() => setIsAddingPhone(false)}
+                    className="px-4 py-2 rounded font-semibold transition-all"
+                    style={{ backgroundColor: '#E5E7EB', color: '#374151' }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Phone List */}
+            <div className="space-y-3">
+              {phones.map((phone) => {
+                const isDefault = DEFAULT_PHONES.some(p => p.id === phone.id);
+                const displayPhone = editingPhone?.id === phone.id ? editingPhone : phone;
+                
+                return (
+                  <div
+                    key={phone.id}
+                    className="p-4 rounded-lg border-2"
+                    style={{ 
+                      backgroundColor: editingPhone?.id === phone.id ? '#F3F4F6' : '#FFFFFF',
+                      borderColor: editingPhone?.id === phone.id ? '#2563EB' : '#E5E7EB'
+                    }}
+                  >
+                    {editingPhone?.id === phone.id ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium" style={{ color: '#666666' }}>
+                            {isDefault ? 'Default Phone' : 'Custom Phone'}
+                          </span>
+                          <button
+                            onClick={() => setEditingPhone(null)}
+                            className="p-1 rounded"
+                            style={{ color: '#666666' }}
+                            onMouseEnter={(e) => e.currentTarget.style.color = '#374151'}
+                            onMouseLeave={(e) => e.currentTarget.style.color = '#666666'}
+                          >
+                            <X size={18} />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium mb-1" style={{ color: '#000000' }}>Brand</label>
+                            <input
+                              type="text"
+                              value={displayPhone.brand}
+                              onChange={(e) => setEditingPhone({ ...editingPhone!, brand: e.target.value })}
+                              className="w-full px-2 py-1 text-sm border rounded"
+                              style={{ borderColor: '#D1D5DB' }}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium mb-1" style={{ color: '#000000' }}>Model</label>
+                            <input
+                              type="text"
+                              value={displayPhone.model}
+                              onChange={(e) => setEditingPhone({ ...editingPhone!, model: e.target.value })}
+                              className="w-full px-2 py-1 text-sm border rounded"
+                              style={{ borderColor: '#D1D5DB' }}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-medium mb-1" style={{ color: '#000000' }}>Price ($)</label>
+                            <input
+                              type="number"
+                              value={displayPhone.price}
+                              onChange={(e) => setEditingPhone({ ...editingPhone!, price: parseFloat(e.target.value) || 0 })}
+                              className="w-full px-2 py-1 text-sm border rounded"
+                              style={{ borderColor: '#D1D5DB' }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleUpdatePhone}
+                            className="px-3 py-1 text-xs rounded font-semibold transition-all flex items-center gap-1"
+                            style={{ backgroundColor: '#2563EB', color: '#FFFFFF' }}
+                          >
+                            <Save size={12} />
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setEditingPhone(null)}
+                            className="px-3 py-1 text-xs rounded font-semibold transition-all"
+                            style={{ backgroundColor: '#E5E7EB', color: '#374151' }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3">
+                            <div>
+                              <p className="font-semibold" style={{ color: '#000000' }}>{phone.brand}</p>
+                              <p className="text-sm" style={{ color: '#666666' }}>{phone.model}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-lg" style={{ color: '#2563EB' }}>${phone.price}</p>
+                            </div>
+                            {isDefault && (
+                              <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: '#DBEAFE', color: '#1E40AF' }}>
+                                Default
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 ml-4">
+                          <button
+                            onClick={() => startEditingPhone(phone)}
+                            className="p-2 rounded transition-all"
+                            style={{ backgroundColor: '#DBEAFE', color: '#1E40AF' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#BFDBFE'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#DBEAFE'}
+                            title="Edit phone"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          {!isDefault && (
+                            <button
+                              onClick={() => handleDeletePhone(phone.id)}
+                              className="p-2 rounded transition-all"
+                              style={{ backgroundColor: '#FEE2E2', color: '#DC2626' }}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FECACA'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FEE2E2'}
+                              title="Delete phone"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Subscription Management */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-4">
@@ -938,11 +1276,12 @@ export default function AdminPage() {
                     style={{ borderColor: '#E5E7EB' }}
                     onFocus={(e) => e.currentTarget.style.borderColor = '#059669'}
                     onBlur={(e) => e.currentTarget.style.borderColor = '#E5E7EB'}
-                    onKeyDown={(e) => {
+                    onKeyDown={async (e) => {
                       if (e.key === 'Enter' && newRestoreCodeOnly) {
-                        const result = setProStatusByRestoreCode(newRestoreCodeOnly, true);
+                        const result = await setProStatusByRestoreCode(newRestoreCodeOnly, true);
                         if (result.success) {
-                          setSubscriptions(getAllSubscriptions());
+                          const subs = await getAllSubscriptions();
+                          setSubscriptions(subs);
                           setNewRestoreCodeOnly('');
                           alert(`PRO access granted! Device ID: ${result.deviceID?.slice(0, 20)}...`);
                         } else {
@@ -952,11 +1291,12 @@ export default function AdminPage() {
                     }}
                   />
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (newRestoreCodeOnly) {
-                        const result = setProStatusByRestoreCode(newRestoreCodeOnly, true);
+                        const result = await setProStatusByRestoreCode(newRestoreCodeOnly, true);
                         if (result.success) {
-                          setSubscriptions(getAllSubscriptions());
+                          const subs = await getAllSubscriptions();
+                          setSubscriptions(subs);
                           setNewRestoreCodeOnly('');
                           alert(`PRO access granted! Device ID: ${result.deviceID?.slice(0, 20)}...`);
                         } else {
@@ -1013,9 +1353,9 @@ export default function AdminPage() {
                   </div>
                 </div>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (newDeviceID && newRestoreCode) {
-                      handleSetProStatus(newDeviceID, newRestoreCode, true);
+                      await handleSetProStatus(newDeviceID, newRestoreCode, true);
                       setNewDeviceID('');
                       setNewRestoreCode('');
                       alert('PRO access granted!');
@@ -1035,9 +1375,9 @@ export default function AdminPage() {
 
             {/* PRO Users List */}
             <div className="mb-6">
-              <h3 className="font-bold mb-3" style={{ color: '#000000' }}>PRO Users ({getProUsers().length})</h3>
+              <h3 className="font-bold mb-3" style={{ color: '#000000' }}>PRO Users ({subscriptions.filter(s => s.isPro).length})</h3>
               <div className="space-y-2 max-h-64 overflow-y-auto">
-                {getProUsers().map((sub) => (
+                {subscriptions.filter(s => s.isPro).map((sub) => (
                   <div
                     key={sub.deviceID}
                     className="p-3 rounded-lg border-2"
@@ -1064,11 +1404,11 @@ export default function AdminPage() {
                         )}
                       </div>
                       <button
-                        onClick={() => {
-                          if (confirm('Remove PRO access for this device?')) {
-                            handleSetProStatus(sub.deviceID, sub.restoreCode, false);
-                          }
-                        }}
+                          onClick={async () => {
+                            if (confirm('Remove PRO access for this device?')) {
+                              await handleSetProStatus(sub.deviceID, sub.restoreCode, false);
+                            }
+                          }}
                         className="px-3 py-1 text-xs rounded font-semibold transition-all"
                         style={{ backgroundColor: '#FEE2E2', color: '#991B1B' }}
                         onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FECACA'}
@@ -1079,7 +1419,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                 ))}
-                {getProUsers().length === 0 && (
+                {subscriptions.filter(s => s.isPro).length === 0 && (
                   <p className="text-sm text-center py-4" style={{ color: '#999999' }}>No PRO users</p>
                 )}
               </div>

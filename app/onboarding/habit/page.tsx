@@ -35,14 +35,8 @@ export default function HabitPage() {
         router.push('/onboarding/debts');
       }
     } else if (choice === 'no') {
-      // If they set a custom amount, use it; otherwise go to challenge
-      if (customAmount && parseFloat(customAmount) >= onePercent) {
-        setHabit(true, parseFloat(customAmount));
-        router.push('/onboarding/debts');
-      } else {
-        // Show gentle challenge screens
-        router.push('/onboarding/habit/challenge');
-      }
+      // Go directly to challenge flow - no amount required
+      router.push('/onboarding/habit/challenge');
     }
   };
 
@@ -198,51 +192,18 @@ export default function HabitPage() {
                 : 'border-gray-200 bg-white hover:border-gray-300'
             }`}
           >
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <p className="font-semibold text-lg text-black">No, not right now</p>
-                  <p className="text-sm text-black">
-                    But I can commit to at least 1% minimum
-                  </p>
-                </div>
-                {choice === 'no' && (
-                  <div className="w-6 h-6 rounded-full bg-goal flex items-center justify-center">
-                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                )}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-semibold text-lg text-black">No, not right now</p>
+                <p className="text-sm text-black">
+                  I'll explore other options
+                </p>
               </div>
               {choice === 'no' && (
-                <div className="mt-3 space-y-3">
-                  <div className="bg-white rounded-lg p-4 border-2 border-goal">
-                    <p className="text-sm font-medium mb-2 text-black">Set your monthly improvement (minimum 1%):</p>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-black">
-                        {currency?.symbol || '$'}
-                      </span>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={customAmount}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/[^\d.]/g, '');
-                          const numValue = parseFloat(value) || 0;
-                          // Ensure minimum is 1%
-                          if (numValue >= onePercent || value === '') {
-                            setCustomAmount(value);
-                          }
-                        }}
-                        placeholder={`Minimum: ${currency ? formatCurrency(onePercent, currency.code) : `$${onePercent.toFixed(2)}`}`}
-                        className="w-full pl-10 pr-4 py-3 text-lg border-2 border-goal rounded focus:outline-none text-black"
-                        autoFocus
-                      />
-                    </div>
-                    <p className="text-xs mt-2 text-gray-600">
-                      Minimum: {currency ? formatCurrency(onePercent, currency.code) : `$${onePercent.toFixed(2)}`}/month (1% of income)
-                    </p>
-                  </div>
+                <div className="w-6 h-6 rounded-full bg-goal flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
                 </div>
               )}
             </div>
@@ -270,14 +231,13 @@ export default function HabitPage() {
             onClick={handleCommit}
             disabled={
               !choice || 
-              (choice === 'custom' && (!customAmount || parseFloat(customAmount) < onePercent)) ||
-              (choice === 'no' && (!customAmount || parseFloat(customAmount) < onePercent))
+              (choice === 'custom' && (!customAmount || parseFloat(customAmount) < onePercent))
             }
             className="px-8 py-3 bg-passive-dark text-white rounded-lg font-semibold
               disabled:bg-gray-300 disabled:cursor-not-allowed
               hover:bg-passive transition-all shadow-lg hover:shadow-xl disabled:shadow-none"
           >
-            {choice === 'no' && (!customAmount || parseFloat(customAmount) < onePercent) 
+            {choice === 'no' 
               ? 'Continue →' 
               : 'Commit →'}
           </button>
