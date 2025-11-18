@@ -106,7 +106,7 @@ export function saveSubscriptions(subscriptions: SubscriptionStatus[]): void {
  * Get subscription for device ID
  */
 export function getSubscription(deviceID: string): SubscriptionStatus | null {
-  const subscriptions = getAllSubscriptions();
+  const subscriptions = getAllSubscriptionsSync();
   return subscriptions.find(s => s.deviceID === deviceID) || null;
 }
 
@@ -240,7 +240,7 @@ export async function setProStatusByRestoreCode(restoreCode: string, isPro: bool
  * Get subscription by restore code
  */
 export function getSubscriptionByRestoreCode(restoreCode: string): SubscriptionStatus | null {
-  const subscriptions = getAllSubscriptions();
+  const subscriptions = getAllSubscriptionsSync();
   const normalizedCode = restoreCode.replace('-', '').toUpperCase();
   
   return subscriptions.find(s => 
@@ -294,7 +294,7 @@ export function processDeviceTransfer(
   }
   
   // Find subscription by restore code and old device ID
-  const subscriptions = getAllSubscriptions();
+  const subscriptions = getAllSubscriptionsSync();
   const oldSub = subscriptions.find(s => 
     s.deviceID === oldDeviceID && 
     s.restoreCode.replace('-', '').toUpperCase() === restoreCode.replace('-', '').toUpperCase()
@@ -433,7 +433,7 @@ export function approveDeviceTransfer(
   request.approvedBy = approvedBy;
   
   // Update subscription
-  const subscriptions = getAllSubscriptions();
+  const subscriptions = getAllSubscriptionsSync();
   const oldSub = subscriptions.find(s => s.deviceID === request.oldDeviceID);
   
   if (oldSub) {
@@ -505,7 +505,7 @@ export function rejectDeviceTransfer(
  * Get PRO users (admin only)
  */
 export function getProUsers(): SubscriptionStatus[] {
-  return getAllSubscriptions().filter(s => s.isPro);
+  return getAllSubscriptionsSync().filter(s => s.isPro);
 }
 
 /**
