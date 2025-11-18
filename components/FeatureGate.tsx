@@ -8,7 +8,7 @@ import { useUserStore } from '@/store/useUserStore';
 
 interface FeatureGateProps {
   featureId: string;
-  children: ReactNode;
+  children?: ReactNode;
   fallback?: ReactNode;
   showInline?: boolean; // Show inline message vs redirect
 }
@@ -36,7 +36,7 @@ export default function FeatureGate({
   });
 
   if (hasAccess) {
-    return <>{children}</>;
+    return <>{children || null}</>;
   }
 
   // Track blocked attempt
