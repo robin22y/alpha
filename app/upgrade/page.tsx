@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Check, Crown, Sparkles, Info, Zap } from 'lucide-react';
+import { ArrowLeft, Check, Crown, Sparkles, Info, Zap, BarChart3 } from 'lucide-react';
 import { useUserStore } from '@/store/useUserStore';
 import { 
   PRICING_TIERS, 
@@ -213,7 +213,7 @@ export default function UpgradePage() {
           <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
             <h2 className="text-2xl font-bold mb-6 text-center">Why Upgrade?</h2>
             
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="text-center">
                 <div className="inline-block p-4 rounded-full mb-4" style={{ backgroundColor: '#D1FAE5' }}>
                   <Zap size={32} style={{ color: '#2F9E44' }} />
@@ -231,6 +231,16 @@ export default function UpgradePage() {
                 <h3 className="font-bold mb-2">Better Insights</h3>
                 <p className="text-sm text-gray-600">
                   Advanced analytics, projections, and detailed breakdowns to understand your progress.
+                </p>
+              </div>
+
+              <div className="text-center">
+                <div className="inline-block p-4 rounded-full mb-4" style={{ backgroundColor: '#F3E8FF' }}>
+                  <BarChart3 size={32} style={{ color: '#9333EA' }} />
+                </div>
+                <h3 className="font-bold mb-2">Advanced Analytics</h3>
+                <p className="text-sm text-gray-600">
+                  Detailed insights, projections, and performance tracking to optimize your journey.
                 </p>
               </div>
 

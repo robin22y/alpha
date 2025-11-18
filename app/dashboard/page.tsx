@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Calendar, TrendingUp, Target, DollarSign, 
-  Clock, Settings, PlusCircle, BarChart3, Heart, BookOpen, Smartphone, CreditCard, Zap, Sparkles
+  Clock, Settings, PlusCircle, BarChart3, Heart, BookOpen, Smartphone, CreditCard, Zap, Sparkles, Download
 } from 'lucide-react';
 import { useUserStore } from '@/store/useUserStore';
 import { formatCurrency, getCurrency } from '@/lib/currency';
@@ -14,11 +14,18 @@ import {
   getWeeklyMessage,
   checkForNewMilestone
 } from '@/lib/progress';
+import { canUseFeature } from '@/lib/proFeatures';
+import dynamic from 'next/dynamic';
 import PrivacyBadge from '@/components/PrivacyBadge';
 import Navigation from '@/components/Navigation';
-import MilestoneCelebration from '@/components/MilestoneCelebration';
 import { getContextualRecommendations, shouldShowRecommendations, markRecommendationsShown, getRecentlySeenPartners } from '@/lib/recommendationEngine';
 import AffiliateCard from '@/components/AffiliateCard';
+
+// Lazy load heavy components
+const MilestoneCelebration = dynamic(() => import('@/components/MilestoneCelebration'), {
+  ssr: false,
+  loading: () => null,
+});
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -29,20 +36,21 @@ export default function DashboardPage() {
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [showRecs, setShowRecs] = useState(false);
   
-  // Get store data
-  const {
-    createdAt,
-    goal,
-    timeline,
-    finances,
-    habit,
-    totalDebt,
-    totalMonthlyPayment,
-    progress,
-    updateProgress,
-    initializeFromLocalStorage,
-    addMilestone
-  } = useUserStore();
+  // Get store data - use individual selectors to prevent unnecessary re-renders
+  const createdAt = useUserStore((state) => state.createdAt);
+  const goal = useUserStore((state) => state.goal);
+  const timeline = useUserStore((state) => state.timeline);
+  const finances = useUserStore((state) => state.finances);
+  const habit = useUserStore((state) => state.habit);
+  const totalDebt = useUserStore((state) => state.totalDebt);
+  const totalMonthlyPayment = useUserStore((state) => state.totalMonthlyPayment);
+  const progress = useUserStore((state) => state.progress);
+  const updateProgress = useUserStore((state) => state.updateProgress);
+  const initializeFromLocalStorage = useUserStore((state) => state.initializeFromLocalStorage);
+  const addMilestone = useUserStore((state) => state.addMilestone);
+  const isPro = useUserStore((state) => state.isPro);
+  const proExpiresAt = useUserStore((state) => state.proExpiresAt);
+  const adminSettings = useUserStore((state) => state.adminSettings);
 
   // Initialize on mount
   useEffect(() => {
@@ -524,7 +532,7 @@ export default function DashboardPage() {
         <div className="mb-8">
           <h2 className="text-2xl font-bold mb-4" style={{ color: '#000000' }}>Educational Resources</h2>
           
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid md:grid-cols-2 lg:grid-cols-2 gap-4">
             <button
               onClick={() => router.push('/life-moments')}
               className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
@@ -576,6 +584,52 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="transition-all" style={{ color: '#999999' }}>→</div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => router.push('/analytics')}
+              className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 rounded-lg transition-all group-hover:bg-purple-500" style={{ backgroundColor: '#F3E8FF' }}>
+                    <BarChart3 className="group-hover:text-white transition-all" style={{ color: '#9333EA' }} size={28} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-lg flex items-center gap-2" style={{ color: '#000000' }}>
+                      Analytics
+                      {!canUseFeature('advanced_analytics', { createdAt, isPro, proExpiresAt, adminSettings }) && (
+                        <span className="text-xs text-white px-2 py-1 rounded-full" style={{ backgroundColor: '#37B24D' }}>PRO</span>
+                      )}
+                    </p>
+                    <p className="text-sm" style={{ color: '#666666' }}>Deep insights & projections</p>
+                  </div>
+                </div>
+                <div className="transition-all group-hover:text-purple-500" style={{ color: '#999999' }}>→</div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => router.push('/export')}
+              className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 rounded-lg transition-all group-hover:bg-green-500" style={{ backgroundColor: '#D1FAE5' }}>
+                    <Download className="group-hover:text-white transition-all" style={{ color: '#065F46' }} size={28} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-lg flex items-center gap-2" style={{ color: '#000000' }}>
+                      Export Data
+                      {!canUseFeature('export_data', { createdAt, isPro, proExpiresAt, adminSettings }) && (
+                        <span className="text-xs text-white px-2 py-1 rounded-full" style={{ backgroundColor: '#37B24D' }}>PRO</span>
+                      )}
+                    </p>
+                    <p className="text-sm" style={{ color: '#666666' }}>Download as CSV or PDF</p>
+                  </div>
+                </div>
+                <div className="transition-all group-hover:text-green-500" style={{ color: '#999999' }}>→</div>
               </div>
             </button>
           </div>

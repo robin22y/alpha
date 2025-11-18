@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Download, Upload, Trash2, Lock, Database, 
-  Globe, Copy, Check, AlertTriangle, ArrowLeft, Smartphone, Clock
+  Globe, Copy, Check, AlertTriangle, ArrowLeft, Smartphone, Clock, BarChart3
 } from 'lucide-react';
 import { getUserIdentifiers, formatRestoreCode } from '@/lib/deviceId';
 import { 
@@ -20,6 +20,8 @@ import {
   validateBackupFile 
 } from '@/lib/storage';
 import { getCurrency, setCurrency, CURRENCIES, CurrencyCode } from '@/lib/currency';
+import { useUserStore } from '@/store/useUserStore';
+import { hasProAccess } from '@/lib/proFeatures';
 import PrivacyBadge from '@/components/PrivacyBadge';
 
 export default function SettingsPage() {
@@ -42,6 +44,14 @@ export default function SettingsPage() {
 
   const identifiers = getUserIdentifiers();
   const currency = getCurrency();
+  
+  // Get PRO status
+  const createdAt = useUserStore((state) => state.createdAt);
+  const isPro = useUserStore((state) => state.isPro);
+  const proExpiresAt = useUserStore((state) => state.proExpiresAt);
+  const adminSettings = useUserStore((state) => state.adminSettings);
+  
+  const hasPro = createdAt ? hasProAccess({ createdAt, isPro, proExpiresAt, adminSettings }) : false;
 
   useEffect(() => {
     setStorageSize(getStorageSize());
@@ -560,6 +570,61 @@ export default function SettingsPage() {
             </button>
           </div>
         </div>
+
+        {/* Quick Actions */}
+        {hasPro && (
+          <div className="bg-white rounded-lg shadow-lg p-6 md:p-8 mb-6">
+            <h2 className="text-xl font-bold mb-4" style={{ color: '#000000' }}>Quick Actions</h2>
+            
+            <div className="space-y-3">
+              <button
+                onClick={() => router.push('/export')}
+                className="w-full p-4 border-2 rounded-lg transition-all flex items-center justify-between"
+                style={{ borderColor: '#37B24D', backgroundColor: '#D1FAE5' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#37B24D';
+                  e.currentTarget.style.color = '#FFFFFF';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#D1FAE5';
+                  e.currentTarget.style.color = '#000000';
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <Download size={24} style={{ color: '#065F46' }} />
+                  <div className="text-left">
+                    <p className="font-semibold" style={{ color: '#000000' }}>Export Your Data</p>
+                    <p className="text-sm opacity-80" style={{ color: '#666666' }}>Download as CSV or PDF</p>
+                  </div>
+                </div>
+                <span style={{ color: '#666666' }}>→</span>
+              </button>
+
+              <button
+                onClick={() => router.push('/analytics')}
+                className="w-full p-4 border-2 rounded-lg transition-all flex items-center justify-between"
+                style={{ borderColor: '#9333EA', backgroundColor: '#F3E8FF' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#9333EA';
+                  e.currentTarget.style.color = '#FFFFFF';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#F3E8FF';
+                  e.currentTarget.style.color = '#000000';
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <BarChart3 size={24} style={{ color: '#9333EA' }} />
+                  <div className="text-left">
+                    <p className="font-semibold" style={{ color: '#000000' }}>View Analytics</p>
+                    <p className="text-sm" style={{ color: '#666666' }}>Deep insights & projections</p>
+                  </div>
+                </div>
+                <span style={{ color: '#666666' }}>→</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Privacy Notice */}
         <div className="border-2 rounded-lg p-6" style={{ backgroundColor: '#B2F2BB', borderColor: '#69DB7C' }}>

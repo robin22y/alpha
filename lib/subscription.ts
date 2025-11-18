@@ -98,6 +98,54 @@ export function setProStatus(deviceID: string, restoreCode: string, isPro: boole
 }
 
 /**
+ * Set PRO status by restore code only (admin function)
+ * Finds subscription by restore code and grants/revokes PRO access
+ */
+export function setProStatusByRestoreCode(restoreCode: string, isPro: boolean): { success: boolean; error?: string; deviceID?: string } {
+  const subscriptions = getAllSubscriptions();
+  
+  // Normalize restore code (remove dashes, uppercase)
+  const normalizedCode = restoreCode.replace('-', '').toUpperCase();
+  
+  // Find subscription by restore code
+  const existing = subscriptions.find(s => 
+    s.restoreCode.replace('-', '').toUpperCase() === normalizedCode
+  );
+  
+  if (!existing) {
+    return { 
+      success: false, 
+      error: 'No subscription found with this restore code. User may need to sign up first.' 
+    };
+  }
+  
+  // Update PRO status
+  existing.isPro = isPro;
+  if (isPro && !existing.proSince) {
+    existing.proSince = new Date().toISOString();
+  }
+  
+  saveSubscriptions(subscriptions);
+  
+  return { 
+    success: true, 
+    deviceID: existing.deviceID 
+  };
+}
+
+/**
+ * Get subscription by restore code
+ */
+export function getSubscriptionByRestoreCode(restoreCode: string): SubscriptionStatus | null {
+  const subscriptions = getAllSubscriptions();
+  const normalizedCode = restoreCode.replace('-', '').toUpperCase();
+  
+  return subscriptions.find(s => 
+    s.restoreCode.replace('-', '').toUpperCase() === normalizedCode
+  ) || null;
+}
+
+/**
  * Get all device transfer requests
  */
 export function getDeviceTransferRequests(): DeviceTransferRequest[] {
@@ -355,5 +403,39 @@ export function rejectDeviceTransfer(
  */
 export function getProUsers(): SubscriptionStatus[] {
   return getAllSubscriptions().filter(s => s.isPro);
+}
+
+/**
+ * Sync PRO status from subscription system to user store
+ * Call this when user logs in or when admin grants PRO access
+ */
+export function syncProStatusToStore(deviceID: string): { isPro: boolean; proExpiresAt?: string; proSince?: string } {
+  const subscription = getSubscription(deviceID);
+  
+  if (!subscription) {
+    return { isPro: false };
+  }
+  
+  // Update localStorage directly (Zustand will pick it up)
+  if (typeof window !== 'undefined') {
+    const storeData = localStorage.getItem('zdebt_user_store');
+    if (storeData) {
+      try {
+        const parsed = JSON.parse(storeData);
+        parsed.state.isPro = subscription.isPro;
+        parsed.state.proExpiresAt = subscription.proExpiresAt;
+        parsed.state.proSince = subscription.proSince;
+        localStorage.setItem('zdebt_user_store', JSON.stringify(parsed));
+      } catch {
+        // If parsing fails, just update the subscription
+      }
+    }
+  }
+  
+  return {
+    isPro: subscription.isPro,
+    proExpiresAt: subscription.proExpiresAt,
+    proSince: subscription.proSince
+  };
 }
 

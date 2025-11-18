@@ -3,8 +3,13 @@
 import { useRouter } from 'next/navigation';
 import { Lock, Shield, Calendar, ArrowRight, Check } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
-import PrivacyBadge from '@/components/PrivacyBadge';
+import dynamic from 'next/dynamic';
 import { initializeUser } from '@/lib/deviceId';
+
+// Lazy load PrivacyBadge
+const PrivacyBadge = dynamic(() => import('@/components/PrivacyBadge'), {
+  ssr: false,
+});
 
 type LifeStage = 'young' | 'midlife' | 'older';
 

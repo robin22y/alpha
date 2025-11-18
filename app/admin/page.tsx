@@ -19,6 +19,7 @@ import {
   getAllSubscriptions, 
   getProUsers, 
   setProStatus,
+  setProStatusByRestoreCode,
   getDeviceTransferRequests,
   approveDeviceTransfer,
   rejectDeviceTransfer,
@@ -77,6 +78,7 @@ export default function AdminPage() {
   const [transferRequests, setTransferRequests] = useState<DeviceTransferRequest[]>([]);
   const [newDeviceID, setNewDeviceID] = useState('');
   const [newRestoreCode, setNewRestoreCode] = useState('');
+  const [newRestoreCodeOnly, setNewRestoreCodeOnly] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
 
   useEffect(() => {
@@ -920,52 +922,115 @@ export default function AdminPage() {
             {/* Add PRO Subscription */}
             <div className="mb-6 p-4 rounded-lg border-2" style={{ backgroundColor: '#F3F4F6', borderColor: '#059669' }}>
               <h3 className="font-bold mb-3" style={{ color: '#000000' }}>Grant PRO Access</h3>
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: '#000000' }}>Device ID</label>
+              
+              {/* Quick Grant by Restore Code Only */}
+              <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: '#D1FAE5', borderColor: '#6EE7B7' }}>
+                <label className="block text-xs font-medium mb-2" style={{ color: '#000000' }}>
+                  Quick Grant (Restore Code Only) ⚡
+                </label>
+                <div className="flex gap-2">
                   <input
                     type="text"
-                    value={newDeviceID}
-                    onChange={(e) => setNewDeviceID(e.target.value)}
-                    placeholder="1700140800000-a3f9k2x"
-                    className="w-full px-3 py-2 text-sm border-2 rounded-lg focus:outline-none"
+                    value={newRestoreCodeOnly}
+                    onChange={(e) => setNewRestoreCodeOnly(e.target.value)}
+                    placeholder="ABCD-1234 or ABCD1234"
+                    className="flex-1 px-3 py-2 text-sm border-2 rounded-lg focus:outline-none font-mono"
                     style={{ borderColor: '#E5E7EB' }}
                     onFocus={(e) => e.currentTarget.style.borderColor = '#059669'}
                     onBlur={(e) => e.currentTarget.style.borderColor = '#E5E7EB'}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newRestoreCodeOnly) {
+                        const result = setProStatusByRestoreCode(newRestoreCodeOnly, true);
+                        if (result.success) {
+                          setSubscriptions(getAllSubscriptions());
+                          setNewRestoreCodeOnly('');
+                          alert(`PRO access granted! Device ID: ${result.deviceID?.slice(0, 20)}...`);
+                        } else {
+                          alert(`Error: ${result.error}`);
+                        }
+                      }
+                    }}
                   />
+                  <button
+                    onClick={() => {
+                      if (newRestoreCodeOnly) {
+                        const result = setProStatusByRestoreCode(newRestoreCodeOnly, true);
+                        if (result.success) {
+                          setSubscriptions(getAllSubscriptions());
+                          setNewRestoreCodeOnly('');
+                          alert(`PRO access granted! Device ID: ${result.deviceID?.slice(0, 20)}...`);
+                        } else {
+                          alert(`Error: ${result.error}`);
+                        }
+                      } else {
+                        alert('Please enter a restore code');
+                      }
+                    }}
+                    className="px-4 py-2 rounded font-semibold transition-all"
+                    style={{ backgroundColor: '#059669', color: '#FFFFFF' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#047857'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#059669'}
+                  >
+                    Grant PRO
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium mb-1" style={{ color: '#000000' }}>Restore Code</label>
-                  <input
-                    type="text"
-                    value={newRestoreCode}
-                    onChange={(e) => setNewRestoreCode(e.target.value)}
-                    placeholder="ABCD1234"
-                    className="w-full px-3 py-2 text-sm border-2 rounded-lg focus:outline-none font-mono"
-                    style={{ borderColor: '#E5E7EB' }}
-                    onFocus={(e) => e.currentTarget.style.borderColor = '#059669'}
-                    onBlur={(e) => e.currentTarget.style.borderColor = '#E5E7EB'}
-                  />
-                </div>
+                <p className="text-xs mt-2" style={{ color: '#666666' }}>
+                  Enter restore code to grant PRO access. Works if user has already signed up.
+                </p>
               </div>
-              <button
-                onClick={() => {
-                  if (newDeviceID && newRestoreCode) {
-                    handleSetProStatus(newDeviceID, newRestoreCode, true);
-                    setNewDeviceID('');
-                    setNewRestoreCode('');
-                    alert('PRO access granted!');
-                  } else {
-                    alert('Please enter both Device ID and Restore Code');
-                  }
-                }}
-                className="px-4 py-2 rounded font-semibold transition-all"
-                style={{ backgroundColor: '#059669', color: '#FFFFFF' }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#047857'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#059669'}
-              >
-                Grant PRO
-              </button>
+
+              {/* Advanced: Device ID + Restore Code */}
+              <details className="mb-3">
+                <summary className="cursor-pointer text-sm font-medium mb-2" style={{ color: '#666666' }}>
+                  Advanced: Device ID + Restore Code
+                </summary>
+                <div className="grid grid-cols-2 gap-3 mt-2">
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: '#000000' }}>Device ID</label>
+                    <input
+                      type="text"
+                      value={newDeviceID}
+                      onChange={(e) => setNewDeviceID(e.target.value)}
+                      placeholder="1700140800000-a3f9k2x"
+                      className="w-full px-3 py-2 text-sm border-2 rounded-lg focus:outline-none"
+                      style={{ borderColor: '#E5E7EB' }}
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#059669'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#E5E7EB'}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: '#000000' }}>Restore Code</label>
+                    <input
+                      type="text"
+                      value={newRestoreCode}
+                      onChange={(e) => setNewRestoreCode(e.target.value)}
+                      placeholder="ABCD1234"
+                      className="w-full px-3 py-2 text-sm border-2 rounded-lg focus:outline-none font-mono"
+                      style={{ borderColor: '#E5E7EB' }}
+                      onFocus={(e) => e.currentTarget.style.borderColor = '#059669'}
+                      onBlur={(e) => e.currentTarget.style.borderColor = '#E5E7EB'}
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    if (newDeviceID && newRestoreCode) {
+                      handleSetProStatus(newDeviceID, newRestoreCode, true);
+                      setNewDeviceID('');
+                      setNewRestoreCode('');
+                      alert('PRO access granted!');
+                    } else {
+                      alert('Please enter both Device ID and Restore Code');
+                    }
+                  }}
+                  className="px-4 py-2 rounded font-semibold transition-all mt-2"
+                  style={{ backgroundColor: '#059669', color: '#FFFFFF' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#047857'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#059669'}
+                >
+                  Grant PRO
+                </button>
+              </details>
             </div>
 
             {/* PRO Users List */}
