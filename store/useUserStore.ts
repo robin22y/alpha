@@ -251,13 +251,54 @@ export const useUserStore = create<UserStore>()(
         const state = get();
         const totalDebt = state.debts.reduce((sum, debt) => {
           if (debt.debtType === 'mortgage') {
-            return sum + (debt.loanAmount || debt.balance || 0);
+            // For mortgages, use loanAmount if set, otherwise calculate from homePrice - downPayment, or use balance
+            let mortgageAmount = 0;
+            if (debt.loanAmount !== undefined && debt.loanAmount !== null) {
+              mortgageAmount = debt.loanAmount;
+            } else if (debt.homePrice !== undefined && debt.downPayment !== undefined) {
+              mortgageAmount = Math.max(0, (debt.homePrice || 0) - (debt.downPayment || 0));
+            } else if (debt.balance !== undefined && debt.balance !== null) {
+              mortgageAmount = debt.balance;
+            }
+            console.log('Mortgage debt calculation:', {
+              name: debt.name,
+              loanAmount: debt.loanAmount,
+              homePrice: debt.homePrice,
+              downPayment: debt.downPayment,
+              balance: debt.balance,
+              calculated: mortgageAmount
+            });
+            return sum + mortgageAmount;
           } else if (debt.debtType === 'personal_loan' || debt.debtType === 'car_loan' || debt.debtType === 'student_loan') {
-            return sum + (debt.loanAmount || debt.balance || 0);
+            // For loans, use loanAmount if set, otherwise use balance
+            let loanAmount = 0;
+            if (debt.loanAmount !== undefined && debt.loanAmount !== null) {
+              loanAmount = debt.loanAmount;
+            } else if (debt.balance !== undefined && debt.balance !== null) {
+              loanAmount = debt.balance;
+            }
+            console.log('Loan debt calculation:', {
+              name: debt.name,
+              debtType: debt.debtType,
+              loanAmount: debt.loanAmount,
+              balance: debt.balance,
+              calculated: loanAmount
+            });
+            return sum + loanAmount;
           }
           return sum + (debt.balance || 0);
         }, 0);
         const totalMonthlyPayment = state.debts.reduce((sum, debt) => sum + (debt.monthlyPayment || 0), 0);
+        
+        console.log('calculateTotals - Total debt:', totalDebt, 'Total monthly:', totalMonthlyPayment);
+        console.log('calculateTotals - Debts:', state.debts.map(d => ({
+          name: d.name,
+          type: d.debtType,
+          loanAmount: d.loanAmount,
+          balance: d.balance,
+          homePrice: d.homePrice,
+          downPayment: d.downPayment
+        })));
         
         set({ totalDebt, totalMonthlyPayment });
       },

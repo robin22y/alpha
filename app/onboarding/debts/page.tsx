@@ -227,14 +227,37 @@ export default function DebtsPage() {
       if (debt.debtType === 'mortgage') {
         debtData.homePrice = debt.homePrice || 0;
         debtData.downPayment = debt.downPayment || 0;
-        debtData.loanAmount = debt.loanAmount || 0;
+        // Ensure loanAmount is calculated from homePrice - downPayment
+        const calculatedLoanAmount = Math.max(0, (debt.homePrice || 0) - (debt.downPayment || 0));
+        debtData.loanAmount = calculatedLoanAmount;
         debtData.mortgageTermYears = debt.mortgageTermYears || 30;
         if (debt.startDate) debtData.startDate = debt.startDate;
-        debtData.balance = debtData.loanAmount; // For compatibility
+        debtData.balance = calculatedLoanAmount; // For compatibility - use calculated value
+        
+        console.log('Saving mortgage:', {
+          name: debtData.name,
+          homePrice: debtData.homePrice,
+          downPayment: debtData.downPayment,
+          loanAmount: debtData.loanAmount,
+          balance: debtData.balance,
+          monthlyPayment: debtData.monthlyPayment
+        });
       } else if (debt.debtType === 'personal_loan' || debt.debtType === 'car_loan' || debt.debtType === 'student_loan') {
-        debtData.loanAmount = debt.loanAmount || debt.balance || 0;
+        // Ensure loanAmount is set correctly - use loanAmount if set, otherwise use balance
+        const calculatedLoanAmount = (debt.loanAmount !== undefined && debt.loanAmount !== null) 
+          ? debt.loanAmount 
+          : (debt.balance || 0);
+        debtData.loanAmount = calculatedLoanAmount;
         debtData.loanTermYears = debt.loanTermYears;
-        debtData.balance = debtData.loanAmount; // For compatibility
+        debtData.balance = calculatedLoanAmount; // For compatibility
+        
+        console.log('Saving loan:', {
+          name: debtData.name,
+          debtType: debtData.debtType,
+          loanAmount: debtData.loanAmount,
+          balance: debtData.balance,
+          monthlyPayment: debtData.monthlyPayment
+        });
       } else {
         debtData.balance = debt.balance;
       }
