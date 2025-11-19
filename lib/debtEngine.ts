@@ -39,20 +39,33 @@ export interface MortgageDebtInput extends BaseDebtInput {
 
 export type DebtInput = SimpleDebtInput | MortgageDebtInput;
 
-export interface DebtComputed {
-  id: string;                   // Explicitly include all BaseDebtInput properties
-  name: string;
-  debtType: DebtType;
+/**
+ * Discriminated union for computed debts.
+ * TypeScript will narrow types based on debtType.
+ */
+export interface MortgageDebtComputed extends BaseDebtInput {
+  debtType: "mortgage";
+  principal: number;           // Required for mortgages
   interestRate: number;
-  balance?: number;             // For simple debts (credit cards, loans)
-  principal?: number;           // For mortgages
-  termYears?: number;           // For mortgages
-  customMonthlyPayment?: number; // For mortgages (optional override)
+  termYears: number;           // Required for mortgages
+  customMonthlyPayment?: number; // Optional override
   monthlyPayment: number;
-  monthsToPayoff: number;      // Infinity if never repays at that payment
-  totalPaid: number;           // principal + interest
+  monthsToPayoff: number;
+  totalPaid: number;
   totalInterest: number;
 }
+
+export interface SimpleDebtComputed extends BaseDebtInput {
+  debtType: Exclude<DebtType, "mortgage">;
+  balance: number;             // Required for simple debts
+  interestRate: number;
+  monthlyPayment: number;
+  monthsToPayoff: number;
+  totalPaid: number;
+  totalInterest: number;
+}
+
+export type DebtComputed = MortgageDebtComputed | SimpleDebtComputed;
 
 /**
  * Amortised loan payment.
@@ -148,7 +161,13 @@ export function computeDebt(d: DebtInput): DebtComputed {
     const totalInterest = +(totalPaid - principal).toFixed(2);
 
     return {
-      ...d,
+      id: d.id,
+      name: d.name,
+      debtType: "mortgage" as const,
+      principal,
+      interestRate: d.interestRate,
+      termYears,
+      customMonthlyPayment: d.customMonthlyPayment,
       monthlyPayment: payment,
       monthsToPayoff,
       totalPaid,
@@ -180,7 +199,11 @@ export function computeDebt(d: DebtInput): DebtComputed {
       : +(totalPaid - balance).toFixed(2);
 
   return {
-    ...d,
+    id: d.id,
+    name: d.name,
+    debtType: d.debtType,
+    balance,
+    interestRate: rate,
     monthlyPayment: payment,
     monthsToPayoff,
     totalPaid,
