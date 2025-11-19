@@ -132,9 +132,11 @@ export default function DebtsPage() {
 
   const totalDebt = computed.reduce((sum, d) => {
     if (d.debtType === 'mortgage') {
-      return sum + d.principal;
+      const principal = d.principal ?? 0;
+      return sum + principal;
     } else {
-      return sum + d.balance;
+      const balance = d.balance ?? 0;
+      return sum + balance;
     }
   }, 0);
 
@@ -147,9 +149,9 @@ export default function DebtsPage() {
       if (debt.monthlyPayment <= 0) return false;
       
       if (debt.debtType === 'mortgage') {
-        return debt.principal > 0;
+        return (debt.principal ?? 0) > 0;
       } else {
-        return debt.balance > 0;
+        return (debt.balance ?? 0) > 0;
       }
     });
 
@@ -172,9 +174,9 @@ export default function DebtsPage() {
 
       if (debt.debtType === 'mortgage') {
         // Mortgage: save principal as loanAmount and balance for compatibility
-        debtData.loanAmount = debt.principal;
+        debtData.loanAmount = debt.principal ?? 0;
         debtData.mortgageTermYears = debt.termYears;
-        debtData.balance = debt.principal; // For compatibility with existing code
+        debtData.balance = debt.principal ?? 0; // For compatibility with existing code
       } else if (debt.debtType === 'personal_loan' || debt.debtType === 'car_loan' || debt.debtType === 'student_loan') {
         // Loans: save balance as loanAmount for consistency
         debtData.loanAmount = debt.balance;
@@ -314,11 +316,14 @@ export default function DebtsPage() {
                             type="text"
                             inputMode="decimal"
                             value={(debt as MortgageDebtInput).principal || ''}
-                            onChange={(e) => handleDebtChange(
-                              debt.id,
-                              'principal',
-                              parseFloat(e.target.value.replace(/[^\d.]/g, '')) || 0
-                            )}
+                            onChange={(e) => {
+                              const value = parseFloat(e.target.value.replace(/[^\d.]/g, '')) || 0;
+                              setDebts(prev =>
+                                prev.map(d => (d.id === debt.id && d.debtType === 'mortgage' 
+                                  ? { ...d, principal: value } as MortgageDebtInput
+                                  : d))
+                              );
+                            }}
                             placeholder="0"
                             className="w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:outline-none"
                             style={{ borderColor: '#E5E7EB' }}
@@ -337,11 +342,14 @@ export default function DebtsPage() {
                           type="number"
                           min={1}
                           value={(debt as MortgageDebtInput).termYears || 30}
-                          onChange={(e) => handleDebtChange(
-                            debt.id,
-                            'termYears',
-                            parseInt(e.target.value) || 30
-                          )}
+                          onChange={(e) => {
+                              const value = parseInt(e.target.value) || 30;
+                              setDebts(prev =>
+                                prev.map(d => (d.id === debt.id && d.debtType === 'mortgage' 
+                                  ? { ...d, termYears: value } as MortgageDebtInput
+                                  : d))
+                              );
+                            }}
                           className="w-full px-4 py-3 border-2 rounded-lg focus:outline-none"
                           style={{ borderColor: '#E5E7EB' }}
                           onFocus={(e) => e.currentTarget.style.borderColor = '#4DABF7'}
@@ -400,7 +408,7 @@ export default function DebtsPage() {
                               value={(debt as SimpleDebtInput).balance || ''}
                               onChange={(e) => handleDebtChange(
                                 debt.id,
-                                'balance',
+                                'balance' as keyof DebtInput,
                                 parseFloat(e.target.value.replace(/[^\d.]/g, '')) || 0
                               )}
                               placeholder="0"
@@ -426,7 +434,7 @@ export default function DebtsPage() {
                               value={(debt as SimpleDebtInput).monthlyPayment || ''}
                               onChange={(e) => handleDebtChange(
                                 debt.id,
-                                'monthlyPayment',
+                                'monthlyPayment' as keyof DebtInput,
                                 parseFloat(e.target.value.replace(/[^\d.]/g, '')) || 0
                               )}
                               placeholder="0"

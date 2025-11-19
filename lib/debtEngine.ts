@@ -39,7 +39,7 @@ export interface MortgageDebtInput extends BaseDebtInput {
 
 export type DebtInput = SimpleDebtInput | MortgageDebtInput;
 
-export interface DebtComputed extends DebtInput {
+export interface DebtComputed {
   id: string;                   // Explicitly include all BaseDebtInput properties
   name: string;
   debtType: DebtType;

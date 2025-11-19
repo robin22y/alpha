@@ -64,9 +64,11 @@ export function calculateDebtTotals(computedDebts: DebtComputed[]): {
 } {
   const totalDebt = computedDebts.reduce((sum, d) => {
     if (d.debtType === 'mortgage') {
-      return sum + d.principal;
+      const principal = d.principal ?? 0;
+      return sum + principal;
     } else {
-      return sum + d.balance;
+      const balance = d.balance ?? 0;
+      return sum + balance;
     }
   }, 0);
 
