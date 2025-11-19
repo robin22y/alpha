@@ -51,13 +51,30 @@ export default function DashboardPage() {
   const totalMonthlyPayment = useUserStore((state) => state.totalMonthlyPayment);
   const progress = useUserStore((state) => state.progress);
   
-  // Compute debts using debt engine
-  const computedDebts: DebtComputed[] = debts.length > 0 ? computeDebtsFromStore(debts) : [];
-  const debtTotals = computedDebts.length > 0 ? calculateDebtTotals(computedDebts) : {
-    totalDebt: 0,
-    totalMonthlyPayment: 0,
-    totalInterest: 0
-  };
+  // Compute debts using debt engine - use useMemo to avoid recalculating unnecessarily
+  const computedDebts: DebtComputed[] = useMemo(() => {
+    if (!mounted || !debts || debts.length === 0) return [];
+    try {
+      const computed = computeDebtsFromStore(debts);
+      console.log('Dashboard useMemo - Debts:', debts);
+      console.log('Dashboard useMemo - Computed:', computed);
+      return computed;
+    } catch (error) {
+      console.error('Error computing debts:', error);
+      return [];
+    }
+  }, [mounted, debts]);
+  
+  const debtTotals = useMemo(() => {
+    if (computedDebts.length === 0) {
+      return {
+        totalDebt: 0,
+        totalMonthlyPayment: 0,
+        totalInterest: 0
+      };
+    }
+    return calculateDebtTotals(computedDebts);
+  }, [computedDebts]);
   const updateProgress = useUserStore((state) => state.updateProgress);
   const initializeFromLocalStorage = useUserStore((state) => state.initializeFromLocalStorage);
   const addMilestone = useUserStore((state) => state.addMilestone);
@@ -89,6 +106,24 @@ export default function DashboardPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
+
+  // Recalculate totals when debts change
+  useEffect(() => {
+    if (mounted) {
+      // Force recalculation in store whenever debts change
+      useUserStore.getState().calculateTotals();
+      console.log('Dashboard - Debts array:', debts);
+      console.log('Dashboard - Debts count:', debts.length);
+      if (debts.length > 0) {
+        const computed = computeDebtsFromStore(debts);
+        const totals = calculateDebtTotals(computed);
+        console.log('Dashboard - Computed debts:', computed);
+        console.log('Dashboard - Debt totals:', totals);
+        console.log('Dashboard - Has debt?', totals.totalDebt > 0);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, debts.length]); // Only depend on debts.length to avoid infinite loops
 
   // Update progress on mount and when data changes
   useEffect(() => {
