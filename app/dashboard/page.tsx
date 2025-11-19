@@ -22,6 +22,8 @@ import PrivacyBadge from '@/components/PrivacyBadge';
 import Navigation from '@/components/Navigation';
 import { getContextualRecommendations, shouldShowRecommendations, markRecommendationsShown, getRecentlySeenPartners } from '@/lib/recommendationEngine';
 import AffiliateCard from '@/components/AffiliateCard';
+import { computeDebtsFromStore, calculateDebtTotals } from '@/lib/debtUtils';
+import type { DebtComputed } from '@/lib/debtEngine';
 
 // Lazy load heavy components
 const MilestoneCelebration = dynamic(() => import('@/components/MilestoneCelebration'), {
@@ -44,9 +46,18 @@ export default function DashboardPage() {
   const timeline = useUserStore((state) => state.timeline);
   const finances = useUserStore((state) => state.finances);
   const habit = useUserStore((state) => state.habit);
+  const debts = useUserStore((state) => state.debts);
   const totalDebt = useUserStore((state) => state.totalDebt);
   const totalMonthlyPayment = useUserStore((state) => state.totalMonthlyPayment);
   const progress = useUserStore((state) => state.progress);
+  
+  // Compute debts using debt engine
+  const computedDebts: DebtComputed[] = debts.length > 0 ? computeDebtsFromStore(debts) : [];
+  const debtTotals = computedDebts.length > 0 ? calculateDebtTotals(computedDebts) : {
+    totalDebt: 0,
+    totalMonthlyPayment: 0,
+    totalInterest: 0
+  };
   const updateProgress = useUserStore((state) => state.updateProgress);
   const initializeFromLocalStorage = useUserStore((state) => state.initializeFromLocalStorage);
   const addMilestone = useUserStore((state) => state.addMilestone);
@@ -159,9 +170,31 @@ export default function DashboardPage() {
   const weekDisplay = formatWeekDisplay(currentWeek, progress.totalWeeks);
   const weeklyMessage = getWeeklyMessage(currentWeek);
 
-  const hasDebt = totalDebt > 0;
+  const hasDebt = debtTotals.totalDebt > 0;
   const hasHabit = habit.committed;
   const habitAmount = habit.customAmount || habit.onePercentAmount || 0;
+  
+  // Calculate monthly surplus (income - expenses - debt payments)
+  const monthlySurplus = finances.monthlyIncome - finances.monthlySpending - debtTotals.totalMonthlyPayment;
+  const hasSurplusWarning = monthlySurplus < 0;
+  
+  // Find next debt to pay off (lowest balance for snowball, highest interest for avalanche)
+  // Default to snowball (lowest balance)
+  const nextDebtToPayoff = computedDebts.length > 0 
+    ? computedDebts.reduce((prev, curr) => {
+        const prevBalance = prev.debtType === 'mortgage' ? prev.principal : prev.balance;
+        const currBalance = curr.debtType === 'mortgage' ? curr.principal : curr.balance;
+        return currBalance < prevBalance ? curr : prev;
+      })
+    : null;
+  
+  // Calculate debt-free date (simplified - uses longest payoff time)
+  const maxMonthsToPayoff = computedDebts.length > 0
+    ? Math.max(...computedDebts.map(d => d.monthsToPayoff === Infinity ? 999 : d.monthsToPayoff))
+    : 0;
+  const debtFreeDate = maxMonthsToPayoff > 0 && maxMonthsToPayoff < 999
+    ? new Date(Date.now() + maxMonthsToPayoff * 30 * 24 * 60 * 60 * 1000)
+    : null;
   
   // Check PRO status
   const hasPro = createdAt ? hasProAccess({ createdAt, isPro, proExpiresAt, adminSettings }) : false;
@@ -262,23 +295,28 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Monthly Leftover */}
+          {/* Monthly Surplus (after debt payments) */}
           <div className={`rounded-lg shadow p-6 ${
-            finances.monthlyLeftover >= 0 ? 'bg-white' : ''
-          }`} style={{ backgroundColor: finances.monthlyLeftover >= 0 ? '#FFFFFF' : '#FEE2E2' }}>
+            monthlySurplus >= 0 ? 'bg-white' : ''
+          }`} style={{ backgroundColor: monthlySurplus >= 0 ? '#FFFFFF' : '#FEE2E2' }}>
             <div className="flex items-center gap-3 mb-3">
               <div className={`p-2 rounded-lg ${
-                finances.monthlyLeftover >= 0 ? '' : ''
-              }`} style={{ backgroundColor: finances.monthlyLeftover >= 0 ? '#8CE99A' : '#FECACA' }}>
-                <TrendingUp style={{ color: finances.monthlyLeftover >= 0 ? '#37B24D' : '#DC2626' }} size={24} />
+                monthlySurplus >= 0 ? '' : ''
+              }`} style={{ backgroundColor: monthlySurplus >= 0 ? '#8CE99A' : '#FECACA' }}>
+                <TrendingUp style={{ color: monthlySurplus >= 0 ? '#37B24D' : '#DC2626' }} size={24} />
               </div>
               <div className="flex-1">
-                <p className="text-sm" style={{ color: '#666666' }}>Monthly Leftover</p>
+                <p className="text-sm" style={{ color: '#666666' }}>Monthly Surplus</p>
                 <p className={`text-2xl font-bold ${
-                  finances.monthlyLeftover >= 0 ? '' : ''
-                }`} style={{ color: finances.monthlyLeftover >= 0 ? '#37B24D' : '#DC2626' }}>
-                  {formatCurrency(finances.monthlyLeftover, currency.code)}
+                  monthlySurplus >= 0 ? '' : ''
+                }`} style={{ color: monthlySurplus >= 0 ? '#37B24D' : '#DC2626' }}>
+                  {formatCurrency(monthlySurplus, currency.code)}
                 </p>
+                {hasSurplusWarning && (
+                  <p className="text-xs mt-1" style={{ color: '#DC2626' }}>
+                    ⚠️ Debt payments exceed surplus
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -293,8 +331,13 @@ export default function DashboardPage() {
                 <div className="flex-1">
                   <p className="text-sm" style={{ color: '#666666' }}>Total Debt</p>
                   <p className="text-2xl font-bold" style={{ color: '#FF9800' }}>
-                    {formatCurrency(totalDebt, currency.code)}
+                    {formatCurrency(debtTotals.totalDebt, currency.code)}
                   </p>
+                  {debtTotals.totalInterest > 0 && (
+                    <p className="text-xs mt-1" style={{ color: '#666666' }}>
+                      Interest: {formatCurrency(debtTotals.totalInterest, currency.code)}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -402,16 +445,45 @@ export default function DashboardPage() {
                   <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#FFE066' }}>
                     <p className="text-sm mb-1" style={{ color: '#666666' }}>Total Remaining</p>
                     <p className="text-3xl font-bold" style={{ color: '#FF9800' }}>
-                      {formatCurrency(totalDebt, currency.code)}
+                      {formatCurrency(debtTotals.totalDebt, currency.code)}
                     </p>
+                    {debtTotals.totalInterest > 0 && (
+                      <p className="text-xs mt-1" style={{ color: '#666666' }}>
+                        Total Interest: {formatCurrency(debtTotals.totalInterest, currency.code)}
+                      </p>
+                    )}
                   </div>
 
                   <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#F9FAFB' }}>
                     <p className="text-sm mb-1" style={{ color: '#666666' }}>Monthly Payment</p>
                     <p className="text-2xl font-bold" style={{ color: '#374151' }}>
-                      {formatCurrency(totalMonthlyPayment, currency.code)}
+                      {formatCurrency(debtTotals.totalMonthlyPayment, currency.code)}
                     </p>
                   </div>
+                  
+                  {debtFreeDate && (
+                    <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#DBEAFE' }}>
+                      <p className="text-sm mb-1" style={{ color: '#666666' }}>Debt-Free Date</p>
+                      <p className="text-xl font-bold" style={{ color: '#1C7ED6' }}>
+                        {debtFreeDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
+                      </p>
+                    </div>
+                  )}
+                  
+                  {nextDebtToPayoff && (
+                    <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#FEF3C7' }}>
+                      <p className="text-sm mb-1" style={{ color: '#666666' }}>Next to Pay Off</p>
+                      <p className="text-lg font-bold" style={{ color: '#92400E' }}>
+                        {nextDebtToPayoff.name}
+                      </p>
+                      <p className="text-xs mt-1" style={{ color: '#666666' }}>
+                        {formatCurrency(
+                          nextDebtToPayoff.debtType === 'mortgage' ? nextDebtToPayoff.principal : nextDebtToPayoff.balance,
+                          currency.code
+                        )} remaining
+                      </p>
+                    </div>
+                  )}
 
                   {hasHabit && (
                     <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#8CE99A' }}>
