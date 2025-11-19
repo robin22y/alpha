@@ -141,12 +141,6 @@ export default function DebtsPage() {
   const totalMonthly = computed.reduce((sum, d) => sum + d.monthlyPayment, 0);
 
   const handleContinue = () => {
-    // Clear existing debts first
-    const currentDebts = [...useUserStore.getState().debts];
-    currentDebts.forEach(debt => {
-      removeDebt(debt.id);
-    });
-
     // Filter valid debts
     const validDebts = computed.filter(debt => {
       if (!debt.name || debt.name.trim() === '') return false;
@@ -165,7 +159,7 @@ export default function DebtsPage() {
     }
 
     // Convert DebtComputed to DebtItem for store
-    validDebts.forEach(debt => {
+    const debtsToSave: any[] = validDebts.map(debt => {
       const debtData: any = {
         id: debt.id,
         type: debt.name,
@@ -190,11 +184,22 @@ export default function DebtsPage() {
         debtData.balance = debt.balance;
       }
 
-      addDebt(debtData);
+      return debtData;
     });
 
+    // Clear all debts and set new ones atomically
+    useUserStore.setState((state) => ({
+      ...state,
+      debts: debtsToSave
+    }));
+    
     // Force recalculation
     useUserStore.getState().calculateTotals();
+    
+    // Log for debugging
+    console.log('Saved debts:', debtsToSave);
+    console.log('Total debts saved:', debtsToSave.length);
+    
     router.push('/onboarding/results');
   };
 

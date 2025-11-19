@@ -23,7 +23,10 @@ export function convertDebtItemToInput(debt: DebtItem): DebtInput {
     } as MortgageDebtInput;
   } else {
     // Simple debts: credit cards, loans
-    const balance = debt.balance || 0;
+    // For loans, prefer loanAmount if set, otherwise use balance
+    const balance = (debt.debtType === 'personal_loan' || debt.debtType === 'car_loan' || debt.debtType === 'student_loan')
+      ? (debt.loanAmount || debt.balance || 0)
+      : (debt.balance || 0);
     
     return {
       id: debt.id,
@@ -41,7 +44,14 @@ export function convertDebtItemToInput(debt: DebtItem): DebtInput {
  */
 export function computeDebtsFromStore(debts: DebtItem[]): DebtComputed[] {
   const inputs = debts.map(convertDebtItemToInput);
-  return computeAllDebts(inputs);
+  const computed = computeAllDebts(inputs);
+  
+  // Debug logging
+  console.log('computeDebtsFromStore - Input debts:', debts);
+  console.log('computeDebtsFromStore - Converted inputs:', inputs);
+  console.log('computeDebtsFromStore - Computed debts:', computed);
+  
+  return computed;
 }
 
 /**
