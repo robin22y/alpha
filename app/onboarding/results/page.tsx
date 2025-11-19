@@ -13,6 +13,8 @@ import {
   formatDate
 } from '@/lib/calculations';
 import PrivacyBadge from '@/components/PrivacyBadge';
+import { computeDebtsFromStore, calculateDebtTotals } from '@/lib/debtUtils';
+import type { DebtComputed } from '@/lib/debtEngine';
 
 export default function ResultsPage() {
   const router = useRouter();
@@ -20,49 +22,39 @@ export default function ResultsPage() {
   
   const finances = useUserStore((state) => state.finances);
   const habit = useUserStore((state) => state.habit);
-  const totalDebt = useUserStore((state) => state.totalDebt);
-  const totalMonthlyPayment = useUserStore((state) => state.totalMonthlyPayment);
   const debts = useUserStore((state) => state.debts);
   const goal = useUserStore((state) => state.goal);
   const timeline = useUserStore((state) => state.timeline);
-  const calculateTotals = useUserStore((state) => state.calculateTotals);
   const initializeFromLocalStorage = useUserStore((state) => state.initializeFromLocalStorage);
+
+  // Compute debts using debt engine (same as dashboard)
+  const computedDebts: DebtComputed[] = debts.length > 0 ? computeDebtsFromStore(debts) : [];
+  const debtTotals = computedDebts.length > 0 ? calculateDebtTotals(computedDebts) : {
+    totalDebt: 0,
+    totalMonthlyPayment: 0,
+    totalInterest: 0
+  };
 
   useEffect(() => {
     // Initialize from localStorage first
     initializeFromLocalStorage();
-    // Recalculate totals to ensure they're up to date
-    calculateTotals();
     setCurrency(getCurrency());
-  }, [initializeFromLocalStorage, calculateTotals]);
-
-  // Recalculate totals whenever debts change
-  useEffect(() => {
-    if (debts.length > 0) {
-      calculateTotals();
-    }
-  }, [debts.length, calculateTotals]);
+  }, [initializeFromLocalStorage]);
 
   useEffect(() => {
     // Debug: log current state
-    console.log('Results page - Total debt:', totalDebt);
-    console.log('Results page - Total monthly payment:', totalMonthlyPayment);
-    console.log('Results page - Debts:', debts);
+    console.log('Results page - Debts from store:', debts);
+    console.log('Results page - Computed debts:', computedDebts);
+    console.log('Results page - Debt totals:', debtTotals);
     console.log('Results page - Debts count:', debts.length);
-    // Log each debt's details
-    debts.forEach((debt, idx) => {
-      console.log(`Debt ${idx + 1}:`, {
-        name: debt.name,
-        debtType: debt.debtType,
-        balance: debt.balance,
-        loanAmount: debt.loanAmount,
-        monthlyPayment: debt.monthlyPayment
-      });
-    });
-  }, [totalDebt, totalMonthlyPayment, debts]);
+  }, [debts, computedDebts, debtTotals]);
 
-  // Check if there are debts by looking at the debts array and totalDebt
-  const hasDebt = debts.length > 0 && totalDebt > 0;
+  // Check if there are debts using computed totals
+  const hasDebt = computedDebts.length > 0 && debtTotals.totalDebt > 0;
+  
+  // Use computed totals for projections
+  const totalDebt = debtTotals.totalDebt;
+  const totalMonthlyPayment = debtTotals.totalMonthlyPayment;
   
   // Calculate projections
   const incomeBreakdown = calculateIncomeBreakdown(finances.monthlyIncome);
@@ -280,7 +272,7 @@ export default function ResultsPage() {
               </div>
             )}
           </div>
-        ) : (debts.length === 0 || totalDebt === 0) ? (
+        ) : (computedDebts.length === 0 || debtTotals.totalDebt === 0) ? (
           <div className="bg-white rounded-lg shadow-lg p-6 md:p-8 mb-6">
             <h2 className="text-2xl font-bold mb-6 flex items-center gap-2" style={{ color: '#000000' }}>
               <Calendar style={{ color: '#51CF66' }} />
