@@ -64,24 +64,22 @@ export default function ResultsPage() {
   const isCustomAmount = habit.customAmount !== undefined && habit.customAmount !== null;
   
   const debtProjection = hasDebt ? calculateDebtProjection(
-    totalDebt,
-    totalMonthlyPayment,
+    computedDebts,
     habitAmount,
     habit.committed
   ) : null;
   
   const phases = hasDebt ? calculatePhases(
-    totalDebt,
-    totalMonthlyPayment,
+    computedDebts,
     habitAmount,
     habit.committed,
     isCustomAmount
   ) : [];
   
   // Calculate interest savings if habit is committed and we have debt data
-  const interestSavings = hasDebt && habit.committed && debtProjection && debts.length > 0
+  const interestSavings = hasDebt && habit.committed && debtProjection && computedDebts.length > 0
     ? calculateInterestSavings(
-        debts,
+        computedDebts,
         debtProjection.currentTimeline,
         debtProjection.with1Percent,
         habitAmount
@@ -198,7 +196,9 @@ export default function ResultsPage() {
                       <tr className="border-b-2" style={{ borderColor: '#E5E7EB' }}>
                         <th className="pb-3 pr-4 text-sm font-semibold" style={{ color: '#374151' }}>Debt</th>
                         <th className="pb-3 pr-4 text-sm font-semibold text-right" style={{ color: '#374151' }}>Balance</th>
+                        <th className="pb-3 pr-4 text-sm font-semibold text-right" style={{ color: '#374151' }}>Rate</th>
                         <th className="pb-3 pr-4 text-sm font-semibold text-right" style={{ color: '#374151' }}>Monthly Payment</th>
+                        <th className="pb-3 pr-4 text-sm font-semibold text-right" style={{ color: '#374151' }}>Term</th>
                         <th className="pb-3 pr-4 text-sm font-semibold text-right" style={{ color: '#374151' }}>Payoff Date</th>
                         <th className="pb-3 pr-4 text-sm font-semibold text-right" style={{ color: '#374151' }}>Total Interest</th>
                         <th className="pb-3 text-sm font-semibold text-right" style={{ color: '#374151' }}>Months</th>
@@ -210,6 +210,7 @@ export default function ResultsPage() {
                         const payoffDate = new Date();
                         payoffDate.setMonth(payoffDate.getMonth() + (debt.monthsToPayoff === Infinity ? 999 : debt.monthsToPayoff));
                         const isImpossible = debt.monthsToPayoff === Infinity;
+                        const mortgageDebt = debt.debtType === 'mortgage' ? debt as any : null;
                         
                         return (
                           <tr key={debt.id} className={`border-b ${idx === computedDebts.length - 1 ? 'border-b-0' : ''}`} style={{ borderColor: '#F3F4F6' }}>
@@ -226,10 +227,20 @@ export default function ResultsPage() {
                               </div>
                             </td>
                             <td className="py-3 pr-4 text-right font-medium" style={{ color: '#000000' }}>
-                              {formatCurrency(debtBalance, currency.code)}
+                              {formatCurrency(debtBalance || 0, currency.code)}
+                            </td>
+                            <td className="py-3 pr-4 text-right" style={{ color: '#374151' }}>
+                              {debt.interestRate.toFixed(2)}%
                             </td>
                             <td className="py-3 pr-4 text-right font-medium" style={{ color: '#000000' }}>
                               {formatCurrency(debt.monthlyPayment, currency.code)}
+                            </td>
+                            <td className="py-3 pr-4 text-right" style={{ color: '#374151' }}>
+                              {debt.debtType === 'mortgage' && mortgageDebt?.termYears ? (
+                                <span>{mortgageDebt.termYears} years</span>
+                              ) : (
+                                <span className="text-xs">—</span>
+                              )}
                             </td>
                             <td className="py-3 pr-4 text-right" style={{ color: isImpossible ? '#DC2626' : '#374151' }}>
                               {isImpossible ? (

@@ -42,29 +42,88 @@ export function calculateIncomeBreakdown(
 }
 
 /**
- * Calculate simple debt-free timeline
- * Basic calculation: totalDebt / monthlyPayment = months
- * Does NOT account for interest (simplified for MVP)
+ * Calculate debt-free timeline using proper amortization
+ * Uses debt engine to account for interest rates properly
  */
 export function calculateDebtProjection(
-  totalDebt: number,
-  monthlyPayment: number,
+  computedDebts: Array<{
+    debtType: string;
+    balance?: number;
+    principal?: number;
+    monthlyPayment: number;
+    interestRate: number;
+    monthsToPayoff: number;
+  }>,
   onePercentAmount: number = 0,
   habitCommitted: boolean = false
 ): DebtProjection {
-  // Current timeline
-  const currentTimeline = monthlyPayment > 0 
-    ? Math.ceil(totalDebt / monthlyPayment) 
-    : 999;
+  // Current timeline: use max months across all debts (when all are paid off)
+  const currentTimeline = computedDebts.length > 0
+    ? Math.max(...computedDebts.map(d => d.monthsToPayoff === Infinity ? 999 : d.monthsToPayoff))
+    : 0;
   
-  // Timeline with 1% extra payment
-  const extraPayment = habitCommitted ? onePercentAmount : 0;
-  const totalWithExtra = monthlyPayment + extraPayment;
-  const with1Percent = totalWithExtra > 0 
-    ? Math.ceil(totalDebt / totalWithExtra) 
-    : 999;
+  // Timeline with 1% extra payment: recalculate with extra payment applied proportionally
+  let with1Percent = currentTimeline;
   
-  const timeSaved = currentTimeline - with1Percent;
+  if (habitCommitted && onePercentAmount > 0 && computedDebts.length > 0) {
+    // Calculate total monthly payment
+    const totalMonthlyPayment = computedDebts.reduce((sum, d) => sum + d.monthlyPayment, 0);
+    
+    // Apply extra payment proportionally to each debt and recalculate payoff
+    const adjustedMonths = computedDebts.map(debt => {
+      if (debt.monthsToPayoff === Infinity) return 999;
+      
+      // Calculate proportional extra payment for this debt
+      const extraForThisDebt = totalMonthlyPayment > 0
+        ? (onePercentAmount * debt.monthlyPayment) / totalMonthlyPayment
+        : 0;
+      
+      const adjustedPayment = debt.monthlyPayment + extraForThisDebt;
+      
+      // Recalculate months to payoff with adjusted payment
+      if (debt.debtType === 'mortgage') {
+        // For mortgage, use amortization formula
+        const principal = debt.principal || 0;
+        const r = debt.interestRate / 100 / 12;
+        if (r === 0) {
+          return Math.ceil(principal / adjustedPayment);
+        }
+        if (adjustedPayment <= principal * r) {
+          return 999; // Can't pay off
+        }
+        const months = Math.log(adjustedPayment / (adjustedPayment - principal * r)) / Math.log(1 + r);
+        return Math.ceil(months);
+      } else if (debt.debtType === 'credit_card') {
+        // Credit card: revolving credit formula
+        const balance = debt.balance || 0;
+        const r = debt.interestRate / 100 / 12;
+        if (r === 0) {
+          return Math.ceil(balance / adjustedPayment);
+        }
+        if (adjustedPayment <= balance * r) {
+          return 999;
+        }
+        const months = (-1 / Math.log(1 + r)) * Math.log(1 - (balance * r) / adjustedPayment);
+        return Math.ceil(months);
+      } else {
+        // Amortized loan
+        const balance = debt.balance || 0;
+        const r = debt.interestRate / 100 / 12;
+        if (r === 0) {
+          return Math.ceil(balance / adjustedPayment);
+        }
+        if (adjustedPayment <= balance * r) {
+          return 999;
+        }
+        const months = Math.log(adjustedPayment / (adjustedPayment - balance * r)) / Math.log(1 + r);
+        return Math.ceil(months);
+      }
+    });
+    
+    with1Percent = Math.max(...adjustedMonths);
+  }
+  
+  const timeSaved = Math.max(0, currentTimeline - with1Percent);
   
   // Calculate dates
   const today = new Date();
@@ -84,48 +143,100 @@ export function calculateDebtProjection(
 }
 
 /**
- * Calculate phases for comparison
+ * Calculate phases for comparison using proper amortization
  */
 export function calculatePhases(
-  totalDebt: number,
-  monthlyPayment: number,
+  computedDebts: Array<{
+    debtType: string;
+    balance?: number;
+    principal?: number;
+    monthlyPayment: number;
+    interestRate: number;
+    monthsToPayoff: number;
+  }>,
   habitAmount: number,
   habitCommitted: boolean,
   isCustomAmount: boolean = false
 ): Phase[] {
   const phases: Phase[] = [];
   
-  // Current pace phase
-  if (monthlyPayment > 0) {
-    const currentMonths = Math.ceil(totalDebt / monthlyPayment);
-    const currentDate = new Date();
-    currentDate.setMonth(currentDate.getMonth() + currentMonths);
-    
-    phases.push({
-      label: 'Current pace',
-      description: 'Continue as you are',
-      monthlyPayment: monthlyPayment,
-      timelineMonths: currentMonths,
-      debtFreeDate: currentDate
-    });
-  }
+  if (computedDebts.length === 0) return phases;
+  
+  // Current pace phase: use max months across all debts
+  const totalMonthlyPayment = computedDebts.reduce((sum, d) => sum + d.monthlyPayment, 0);
+  const currentMonths = Math.max(...computedDebts.map(d => d.monthsToPayoff === Infinity ? 999 : d.monthsToPayoff));
+  const currentDate = new Date();
+  currentDate.setMonth(currentDate.getMonth() + currentMonths);
+  
+  phases.push({
+    label: 'Current pace',
+    description: 'Continue as you are',
+    monthlyPayment: totalMonthlyPayment,
+    timelineMonths: currentMonths,
+    debtFreeDate: currentDate
+  });
   
   // With habit/step-up strategy phase
   if (habitCommitted && habitAmount > 0) {
-    const extraPayment = monthlyPayment + habitAmount;
-    const months = extraPayment > 0 ? Math.ceil(totalDebt / extraPayment) : 999;
+    // Apply extra payment proportionally and recalculate
+    const adjustedMonths = computedDebts.map(debt => {
+      if (debt.monthsToPayoff === Infinity) return 999;
+      
+      const extraForThisDebt = totalMonthlyPayment > 0
+        ? (habitAmount * debt.monthlyPayment) / totalMonthlyPayment
+        : 0;
+      
+      const adjustedPayment = debt.monthlyPayment + extraForThisDebt;
+      
+      // Recalculate with adjusted payment
+      if (debt.debtType === 'mortgage') {
+        const principal = debt.principal || 0;
+        const r = debt.interestRate / 100 / 12;
+        if (r === 0) {
+          return Math.ceil(principal / adjustedPayment);
+        }
+        if (adjustedPayment <= principal * r) {
+          return 999;
+        }
+        const months = Math.log(adjustedPayment / (adjustedPayment - principal * r)) / Math.log(1 + r);
+        return Math.ceil(months);
+      } else if (debt.debtType === 'credit_card') {
+        const balance = debt.balance || 0;
+        const r = debt.interestRate / 100 / 12;
+        if (r === 0) {
+          return Math.ceil(balance / adjustedPayment);
+        }
+        if (adjustedPayment <= balance * r) {
+          return 999;
+        }
+        const months = (-1 / Math.log(1 + r)) * Math.log(1 - (balance * r) / adjustedPayment);
+        return Math.ceil(months);
+      } else {
+        const balance = debt.balance || 0;
+        const r = debt.interestRate / 100 / 12;
+        if (r === 0) {
+          return Math.ceil(balance / adjustedPayment);
+        }
+        if (adjustedPayment <= balance * r) {
+          return 999;
+        }
+        const months = Math.log(adjustedPayment / (adjustedPayment - balance * r)) / Math.log(1 + r);
+        return Math.ceil(months);
+      }
+    });
+    
+    const months = Math.max(...adjustedMonths);
     const habitDate = new Date();
     habitDate.setMonth(habitDate.getMonth() + months);
     
     // Use "Step-up strategy" if custom amount, otherwise "With 1% habit"
     const label = isCustomAmount ? 'Step-up strategy' : 'With 1% habit';
-    // Description will be formatted in the UI with currency symbol
     const description = `Add ${habitAmount.toFixed(0)}/month`;
     
     phases.push({
       label: label,
       description: description,
-      monthlyPayment: extraPayment,
+      monthlyPayment: totalMonthlyPayment + habitAmount,
       timelineMonths: months,
       debtFreeDate: habitDate
     });
@@ -175,22 +286,43 @@ export function calculateInterestForDebt(
 
 /**
  * Calculate total interest paid across all debts for a given timeline
+ * Uses computed debts with proper amortization
  */
 export function calculateTotalInterest(
-  debts: Array<{ balance: number; monthlyPayment: number; interestRate: number }>,
+  computedDebts: Array<{
+    debtType: string;
+    balance?: number;
+    principal?: number;
+    monthlyPayment: number;
+    interestRate: number;
+    monthsToPayoff: number;
+    totalInterest?: number;
+  }>,
   months: number
 ): number {
   let totalInterest = 0;
   
-  for (const debt of debts) {
-    if (debt.monthlyPayment > 0 && debt.interestRate > 0) {
-      // Calculate how long this specific debt would take to pay off
-      const debtMonths = Math.min(months, Math.ceil(debt.balance / debt.monthlyPayment));
+  for (const debt of computedDebts) {
+    if (debt.monthsToPayoff === Infinity) continue;
+    
+    // Use the actual months to payoff (capped at the given timeline)
+    const actualMonths = Math.min(debt.monthsToPayoff, months);
+    
+    // If we have totalInterest from the debt engine, use it proportionally
+    if (debt.totalInterest !== undefined && debt.totalInterest !== Infinity) {
+      // Calculate proportional interest based on actual months vs full payoff
+      const proportionalInterest = actualMonths < debt.monthsToPayoff
+        ? (debt.totalInterest * actualMonths) / debt.monthsToPayoff
+        : debt.totalInterest;
+      totalInterest += proportionalInterest;
+    } else if (debt.monthlyPayment > 0 && debt.interestRate > 0) {
+      // Fallback: calculate interest for the actual months
+      const balance = debt.debtType === 'mortgage' ? (debt.principal || 0) : (debt.balance || 0);
       const interest = calculateInterestForDebt(
-        debt.balance,
+        balance,
         debt.monthlyPayment,
         debt.interestRate,
-        debtMonths
+        actualMonths
       );
       totalInterest += interest;
     }
@@ -209,23 +341,69 @@ export interface InterestSavings {
 }
 
 export function calculateInterestSavings(
-  debts: Array<{ balance: number; monthlyPayment: number; interestRate: number }>,
+  computedDebts: Array<{
+    debtType: string;
+    balance?: number;
+    principal?: number;
+    monthlyPayment: number;
+    interestRate: number;
+    monthsToPayoff: number;
+    totalInterest?: number;
+  }>,
   currentMonths: number,
   strategyMonths: number,
   strategyExtraPayment: number
 ): InterestSavings {
   // Calculate interest for current pace
-  const currentInterest = calculateTotalInterest(debts, currentMonths);
+  const currentInterest = calculateTotalInterest(computedDebts, currentMonths);
   
   // Calculate interest for strategy (with extra payment)
   // Adjust monthly payments by adding extra payment proportionally to each debt
-  const totalMonthlyPayment = debts.reduce((sum, d) => sum + d.monthlyPayment, 0);
-  const adjustedDebts = debts.map(debt => ({
-    ...debt,
-    monthlyPayment: totalMonthlyPayment > 0 
-      ? debt.monthlyPayment + (strategyExtraPayment * (debt.monthlyPayment / totalMonthlyPayment))
-      : debt.monthlyPayment
-  }));
+  const totalMonthlyPayment = computedDebts.reduce((sum, d) => sum + d.monthlyPayment, 0);
+  
+  // Recalculate debts with adjusted payments
+  const adjustedDebts = computedDebts.map(debt => {
+    const extraForThisDebt = totalMonthlyPayment > 0 
+      ? (strategyExtraPayment * debt.monthlyPayment) / totalMonthlyPayment
+      : 0;
+    
+    const adjustedPayment = debt.monthlyPayment + extraForThisDebt;
+    
+    // Recalculate months to payoff with adjusted payment
+    let adjustedMonths = debt.monthsToPayoff;
+    if (debt.debtType === 'mortgage') {
+      const principal = debt.principal || 0;
+      const r = debt.interestRate / 100 / 12;
+      if (r > 0 && adjustedPayment > principal * r) {
+        adjustedMonths = Math.ceil(Math.log(adjustedPayment / (adjustedPayment - principal * r)) / Math.log(1 + r));
+      }
+    } else if (debt.debtType === 'credit_card') {
+      const balance = debt.balance || 0;
+      const r = debt.interestRate / 100 / 12;
+      if (r > 0 && adjustedPayment > balance * r) {
+        adjustedMonths = Math.ceil((-1 / Math.log(1 + r)) * Math.log(1 - (balance * r) / adjustedPayment));
+      }
+    } else {
+      const balance = debt.balance || 0;
+      const r = debt.interestRate / 100 / 12;
+      if (r > 0 && adjustedPayment > balance * r) {
+        adjustedMonths = Math.ceil(Math.log(adjustedPayment / (adjustedPayment - balance * r)) / Math.log(1 + r));
+      }
+    }
+    
+    // Calculate adjusted total interest
+    const adjustedTotalPaid = adjustedMonths === Infinity ? Infinity : adjustedMonths * adjustedPayment;
+    const adjustedTotalInterest = adjustedTotalPaid === Infinity 
+      ? Infinity 
+      : adjustedTotalPaid - (debt.debtType === 'mortgage' ? (debt.principal || 0) : (debt.balance || 0));
+    
+    return {
+      ...debt,
+      monthlyPayment: adjustedPayment,
+      monthsToPayoff: adjustedMonths,
+      totalInterest: adjustedTotalInterest === Infinity ? undefined : adjustedTotalInterest
+    };
+  });
   
   const strategyInterest = calculateTotalInterest(adjustedDebts, strategyMonths);
   
