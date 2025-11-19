@@ -51,7 +51,7 @@ export default function DashboardPage() {
   const totalMonthlyPayment = useUserStore((state) => state.totalMonthlyPayment);
   const progress = useUserStore((state) => state.progress);
   
-  // Compute debts using debt engine - use useMemo to avoid recalculating unnecessarily
+  // Compute debts using debt engine - recalculate when debts array changes
   const computedDebts: DebtComputed[] = useMemo(() => {
     if (!mounted || !debts || debts.length === 0) return [];
     try {
@@ -63,7 +63,7 @@ export default function DashboardPage() {
       console.error('Error computing debts:', error);
       return [];
     }
-  }, [mounted, debts]);
+  }, [mounted, debts.length, JSON.stringify(debts.map(d => ({ id: d.id, debtType: d.debtType, balance: d.balance, loanAmount: d.loanAmount })))]);
   
   const debtTotals = useMemo(() => {
     if (computedDebts.length === 0) {

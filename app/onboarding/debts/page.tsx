@@ -199,8 +199,12 @@ export default function DebtsPage() {
     // Log for debugging
     console.log('Saved debts:', debtsToSave);
     console.log('Total debts saved:', debtsToSave.length);
+    console.log('Verifying saved state:', useUserStore.getState().debts);
     
-    router.push('/onboarding/results');
+    // Small delay to ensure state is persisted before navigation
+    setTimeout(() => {
+      router.push('/onboarding/results');
+    }, 100);
   };
 
   const handleSkip = () => {
