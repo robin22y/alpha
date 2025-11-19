@@ -186,6 +186,88 @@ export default function ResultsPage() {
               </p>
             </div>
 
+            {/* Individual Debt Breakdown */}
+            {computedDebts.length > 0 && (
+              <div className="mb-6 bg-white rounded-lg p-6 border-2" style={{ borderColor: '#E5E7EB' }}>
+                <h3 className="text-xl font-bold mb-4" style={{ color: '#000000' }}>
+                  Individual Debt Breakdown
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b-2" style={{ borderColor: '#E5E7EB' }}>
+                        <th className="pb-3 pr-4 text-sm font-semibold" style={{ color: '#374151' }}>Debt</th>
+                        <th className="pb-3 pr-4 text-sm font-semibold text-right" style={{ color: '#374151' }}>Balance</th>
+                        <th className="pb-3 pr-4 text-sm font-semibold text-right" style={{ color: '#374151' }}>Monthly Payment</th>
+                        <th className="pb-3 pr-4 text-sm font-semibold text-right" style={{ color: '#374151' }}>Payoff Date</th>
+                        <th className="pb-3 pr-4 text-sm font-semibold text-right" style={{ color: '#374151' }}>Total Interest</th>
+                        <th className="pb-3 text-sm font-semibold text-right" style={{ color: '#374151' }}>Months</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {computedDebts.map((debt, idx) => {
+                        const debtBalance = debt.debtType === 'mortgage' ? debt.principal : debt.balance;
+                        const payoffDate = new Date();
+                        payoffDate.setMonth(payoffDate.getMonth() + (debt.monthsToPayoff === Infinity ? 999 : debt.monthsToPayoff));
+                        const isImpossible = debt.monthsToPayoff === Infinity;
+                        
+                        return (
+                          <tr key={debt.id} className={`border-b ${idx === computedDebts.length - 1 ? 'border-b-0' : ''}`} style={{ borderColor: '#F3F4F6' }}>
+                            <td className="py-3 pr-4">
+                              <div>
+                                <p className="font-medium" style={{ color: '#000000' }}>{debt.name}</p>
+                                <p className="text-xs" style={{ color: '#6B7280' }}>
+                                  {debt.debtType === 'mortgage' ? 'Mortgage' :
+                                   debt.debtType === 'car_loan' ? 'Car Loan' :
+                                   debt.debtType === 'personal_loan' ? 'Personal Loan' :
+                                   debt.debtType === 'student_loan' ? 'Student Loan' :
+                                   'Credit Card'}
+                                </p>
+                              </div>
+                            </td>
+                            <td className="py-3 pr-4 text-right font-medium" style={{ color: '#000000' }}>
+                              {formatCurrency(debtBalance, currency.code)}
+                            </td>
+                            <td className="py-3 pr-4 text-right font-medium" style={{ color: '#000000' }}>
+                              {formatCurrency(debt.monthlyPayment, currency.code)}
+                            </td>
+                            <td className="py-3 pr-4 text-right" style={{ color: isImpossible ? '#DC2626' : '#374151' }}>
+                              {isImpossible ? (
+                                <span className="text-xs font-medium">Never</span>
+                              ) : (
+                                <span>{formatDate(payoffDate)}</span>
+                              )}
+                            </td>
+                            <td className="py-3 pr-4 text-right" style={{ color: '#374151' }}>
+                              {debt.totalInterest === Infinity ? (
+                                <span className="text-xs">—</span>
+                              ) : (
+                                formatCurrency(debt.totalInterest, currency.code)
+                              )}
+                            </td>
+                            <td className="py-3 text-right" style={{ color: isImpossible ? '#DC2626' : '#374151' }}>
+                              {isImpossible ? (
+                                <span className="text-xs font-medium">∞</span>
+                              ) : (
+                                <span>{debt.monthsToPayoff}</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {computedDebts.some(d => d.monthsToPayoff === Infinity) && (
+                  <div className="mt-4 p-3 rounded-lg" style={{ backgroundColor: '#FEE2E2' }}>
+                    <p className="text-sm font-medium" style={{ color: '#991B1B' }}>
+                      ⚠️ Some debts cannot be paid off with the current monthly payment. Consider increasing payments or seeking financial advice.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Phase comparison */}
             <div className="space-y-4">
               {phases.map((phase, idx) => (
@@ -302,13 +384,22 @@ export default function ResultsPage() {
           </div>
         )}
 
-        {/* Disclaimer */}
-        <div className="border rounded-lg p-4 mb-6 text-sm text-center" style={{ backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }}>
-          <p style={{ color: '#374151' }}>
-            <strong>Important:</strong> These are simplified estimates for planning purposes only. 
-            Actual timelines depend on your specific situation, interest rates, and commitment. 
-            This is not financial advice.
-          </p>
+        {/* Methodology & Disclaimer */}
+        <div className="border rounded-lg p-6 mb-6" style={{ backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }}>
+          <h3 className="text-lg font-bold mb-3" style={{ color: '#000000' }}>Calculation Methodology</h3>
+          <div className="text-sm space-y-2 mb-4" style={{ color: '#374151' }}>
+            <p><strong>Mortgages:</strong> Standard amortizing loans with fixed monthly payments calculated using the standard amortization formula. Interest is compounded monthly.</p>
+            <p><strong>Credit Cards:</strong> Revolving credit calculations assume fixed monthly payments with interest applied to the remaining balance each month.</p>
+            <p><strong>Installment Loans (Car, Personal, Student):</strong> Amortized loans calculated using the standard amortization formula with monthly compounding.</p>
+            <p><strong>Assumptions:</strong> All calculations assume constant interest rates, fixed monthly payments, and no additional fees or charges. Extra payments are applied directly to principal reduction.</p>
+          </div>
+          <div className="border-t pt-4 text-sm text-center" style={{ borderColor: '#FCD34D' }}>
+            <p style={{ color: '#374151' }}>
+              <strong>Important:</strong> These are simplified estimates for planning purposes only. 
+              Actual timelines depend on your specific situation, interest rates, and commitment. 
+              This is not financial advice. Consult with a qualified financial advisor for personalized guidance.
+            </p>
+          </div>
         </div>
 
         {/* CTA */}
