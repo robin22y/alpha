@@ -40,6 +40,14 @@ export interface MortgageDebtInput extends BaseDebtInput {
 export type DebtInput = SimpleDebtInput | MortgageDebtInput;
 
 export interface DebtComputed extends DebtInput {
+  id: string;                   // Explicitly include all BaseDebtInput properties
+  name: string;
+  debtType: DebtType;
+  interestRate: number;
+  balance?: number;             // For simple debts (credit cards, loans)
+  principal?: number;           // For mortgages
+  termYears?: number;           // For mortgages
+  customMonthlyPayment?: number; // For mortgages (optional override)
   monthlyPayment: number;
   monthsToPayoff: number;      // Infinity if never repays at that payment
   totalPaid: number;           // principal + interest

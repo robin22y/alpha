@@ -31,7 +31,7 @@ export default function WelcomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-trust-light to-goal-light flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: '#F5F5F7' }}>
       <PrivacyBadge />
       
       <div className="max-w-3xl w-full">

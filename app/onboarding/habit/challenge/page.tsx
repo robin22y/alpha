@@ -60,7 +60,7 @@ export default function ChallengePage() {
 
   if (step === 1) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-white via-yellow-50 to-orange-50 py-8 px-4">
+      <div className="min-h-screen py-8 px-4" style={{ background: '#F5F5F7' }}>
         <PrivacyBadge />
         
         <div className="max-w-2xl mx-auto">
@@ -125,7 +125,7 @@ export default function ChallengePage() {
 
   if (step === 2) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-white via-red-50 to-orange-50 py-8 px-4">
+      <div className="min-h-screen py-8 px-4" style={{ background: '#F5F5F7' }}>
         <PrivacyBadge />
         
         <div className="max-w-2xl mx-auto">
@@ -204,7 +204,7 @@ export default function ChallengePage() {
 
   if (step === 3) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-white via-purple-50 to-blue-50 py-8 px-4">
+      <div className="min-h-screen py-8 px-4" style={{ background: '#F5F5F7' }}>
         <PrivacyBadge />
         
         <div className="max-w-2xl mx-auto">
@@ -282,7 +282,7 @@ export default function ChallengePage() {
 
   // Step 4: Final choice
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-trust-light to-goal-light py-8 px-4">
+    <div className="min-h-screen py-8 px-4" style={{ background: '#F5F5F7' }}>
       <PrivacyBadge />
       
       <div className="max-w-2xl mx-auto">

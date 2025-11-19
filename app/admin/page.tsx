@@ -548,6 +548,18 @@ export default function AdminPage() {
             </label>
           </div>
 
+          {/* Quick Links */}
+          <div className="mb-8">
+            <div className="flex items-center gap-4">
+              <a
+                href="/admin/income-ideas"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+              >
+                Manage Income Ideas →
+              </a>
+            </div>
+          </div>
+
           {/* Affiliate Management */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">

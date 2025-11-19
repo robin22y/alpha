@@ -20,10 +20,22 @@ import { getUserIdentifiers } from '@/lib/deviceId';
 import dynamic from 'next/dynamic';
 import PrivacyBadge from '@/components/PrivacyBadge';
 import Navigation from '@/components/Navigation';
+import LifeBufferAsk from '@/components/LifeBufferAsk';
+import HabitCard from '@/components/HabitCard';
 import { getContextualRecommendations, shouldShowRecommendations, markRecommendationsShown, getRecentlySeenPartners } from '@/lib/recommendationEngine';
 import AffiliateCard from '@/components/AffiliateCard';
 import { computeDebtsFromStore, calculateDebtTotals } from '@/lib/debtUtils';
 import type { DebtComputed } from '@/lib/debtEngine';
+import DebtSparkline from '@/components/DebtSparkline';
+import IncomeSourcesModal from '@/components/IncomeSourcesModal';
+import MetricCard from '@/components/MetricCard';
+import { 
+  getIncomeSources, 
+  saveIncomeSources, 
+  calculateIncomeTotals,
+  initializeDefaultIncome,
+  type IncomeSource 
+} from '@/lib/incomeSources';
 
 // Lazy load heavy components
 const MilestoneCelebration = dynamic(() => import('@/components/MilestoneCelebration'), {
@@ -39,6 +51,9 @@ export default function DashboardPage() {
   const [celebrateMilestone, setCelebrateMilestone] = useState<any>(null);
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [showRecs, setShowRecs] = useState(false);
+  const [includeBuffer, setIncludeBuffer] = useState(false);
+  const [incomeSources, setIncomeSources] = useState<IncomeSource[]>([]);
+  const [showIncomeModal, setShowIncomeModal] = useState(false);
   
   // Get store data - use individual selectors to prevent unnecessary re-renders
   const createdAt = useUserStore((state) => state.createdAt);
@@ -87,6 +102,21 @@ export default function DashboardPage() {
     setCurrency(getCurrency());
     initializeFromLocalStorage();
     setMounted(true);
+    
+    // Check for life buffer choice
+    const choice = localStorage.getItem("zdebt_life_buffer_choice");
+    if (choice === "yes") setIncludeBuffer(true);
+    
+    // Load income sources
+    const sources = getIncomeSources();
+    if (sources.length === 0 && finances.monthlyIncome > 0) {
+      // Initialize default from onboarding income
+      initializeDefaultIncome(finances.monthlyIncome);
+      const defaultSources = getIncomeSources();
+      setIncomeSources(defaultSources);
+    } else {
+      setIncomeSources(sources);
+    }
     
     // Sync PRO status from Supabase
     const identifiers = getUserIdentifiers();
@@ -204,12 +234,18 @@ export default function DashboardPage() {
   const currentWeek = calculateWeekNumber(createdAt);
   const weekDisplay = formatWeekDisplay(currentWeek, progress.totalWeeks);
   const weeklyMessage = getWeeklyMessage(currentWeek);
+  const totalWeeks = progress.totalWeeks || 103;
+  const daysRemaining = progress.daysRemaining || 730;
+  const goalName = goal.label || 'Plan ahead';
 
   const hasDebt = debtTotals.totalDebt > 0;
   const hasHabit = habit.committed;
   const habitAmount = habit.customAmount || habit.onePercentAmount || 0;
   
-  // Calculate monthly surplus (income - expenses - debt payments)
+  // Calculate monthly surplus (income - spending - debt payments)
+  // Note: monthlySpending should NOT include debt payments (they're tracked separately)
+  // If user included debt payments in monthlySpending, this will double-count them
+  // The correct calculation: income - spending (excluding debts) - debt payments
   const monthlySurplus = finances.monthlyIncome - finances.monthlySpending - debtTotals.totalMonthlyPayment;
   const hasSurplusWarning = monthlySurplus < 0;
   
@@ -217,8 +253,8 @@ export default function DashboardPage() {
   // Default to snowball (lowest balance)
   const nextDebtToPayoff = computedDebts.length > 0 
     ? computedDebts.reduce((prev, curr) => {
-        const prevBalance = prev.debtType === 'mortgage' ? prev.principal : prev.balance;
-        const currBalance = curr.debtType === 'mortgage' ? curr.principal : curr.balance;
+        const prevBalance = prev.debtType === 'mortgage' ? (prev.principal || 0) : (prev.balance || 0);
+        const currBalance = curr.debtType === 'mortgage' ? (curr.principal || 0) : (curr.balance || 0);
         return currBalance < prevBalance ? curr : prev;
       })
     : null;
@@ -240,305 +276,305 @@ export default function DashboardPage() {
       <div className="min-h-screen py-8 px-4" style={{ background: 'linear-gradient(to bottom right, white, rgba(178, 242, 187, 0.2), rgba(116, 192, 252, 0.2))' }}>
         <PrivacyBadge />
         
-        <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-3xl md:text-4xl font-bold" style={{ color: '#000000' }}>
-                Your Dashboard
-              </h1>
+        <div className="max-w-5xl mx-auto px-4 pb-10">
+          {/* Settings Button */}
+          <div className="flex justify-end mb-4">
+            <div className="flex items-center gap-2">
               {hasPro && (
                 <div className="flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold" style={{ backgroundColor: '#FFD700', color: '#000000' }}>
                   <Crown size={16} />
                   <span>PRO</span>
                 </div>
               )}
+              <button
+                onClick={() => router.push('/settings')}
+                className="p-3 bg-white rounded-lg shadow hover:shadow-lg transition-all"
+              >
+                <Settings size={24} style={{ color: '#666666' }} />
+              </button>
             </div>
-            <p style={{ color: '#666666' }}>
-              {weeklyMessage}
-            </p>
           </div>
-          
-          <button
-            onClick={() => router.push('/settings')}
-            className="p-3 bg-white rounded-lg shadow hover:shadow-lg transition-all"
-          >
-            <Settings size={24} style={{ color: '#666666' }} />
-          </button>
-        </div>
 
-        {/* Week Banner */}
-        <div className="rounded-lg shadow-lg p-6 md:p-8 mb-6 text-white" style={{ background: 'linear-gradient(to right, #51CF66, #4DABF7)' }}>
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="text-center md:text-left">
-              <p className="mb-1" style={{ color: 'rgba(255, 255, 255, 0.8)' }}>You're on</p>
-              <h2 className="text-4xl md:text-5xl font-bold mb-2">
-                {weekDisplay}
-              </h2>
-              {progress.daysRemaining !== null && (
-                <p style={{ color: 'rgba(255, 255, 255, 0.9)' }}>
-                  {progress.daysRemaining} days remaining to your target
+          {/* Life Buffer Ask */}
+          <LifeBufferAsk onSelect={(v) => setIncludeBuffer(v)} />
+
+          {/* Hero / Journey Section */}
+          <section className="mb-6">
+            <div className="bg-gradient-to-r from-emerald-500 to-sky-500 rounded-3xl p-5 text-white flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide opacity-90">
+                  Your journey
                 </p>
-              )}
-            </div>
-            
-            {goal.label && (
-              <div className="text-center md:text-right">
-                <p className="mb-1" style={{ color: 'rgba(255, 255, 255, 0.8)' }}>Your goal</p>
-                <p className="text-2xl font-bold">{goal.label}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Progress bar */}
-          {progress.timeProgressPercentage > 0 && (
-            <div className="mt-6">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm" style={{ color: 'rgba(255, 255, 255, 0.9)' }}>Time Progress</span>
-                <span className="text-sm font-semibold">
-                  {progress.timeProgressPercentage}%
-                </span>
-              </div>
-              <div className="w-full rounded-full h-3" style={{ backgroundColor: 'rgba(255, 255, 255, 0.3)' }}>
-                <div 
-                  className="h-3 rounded-full transition-all duration-500"
-                  style={{ 
-                    width: `${progress.timeProgressPercentage}%`,
-                    backgroundColor: '#FFFFFF'
-                  }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Quick Stats Grid */}
-        <div className="grid md:grid-cols-3 gap-4 mb-6">
-          {/* Monthly Income */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 rounded-lg" style={{ backgroundColor: '#74C0FC' }}>
-                <DollarSign style={{ color: '#1C7ED6' }} size={24} />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm" style={{ color: '#666666' }}>Monthly Income</p>
-                <p className="text-2xl font-bold" style={{ color: '#1C7ED6' }}>
-                  {formatCurrency(finances.monthlyIncome, currency.code)}
+                <h1 className="text-2xl md:text-3xl font-bold">
+                  Your Journey to Your Goal
+                </h1>
+                <p className="text-sm md:text-base mt-1">
+                  Week {currentWeek} of {totalWeeks} • {daysRemaining} days to your target
+                </p>
+                <p className="text-sm mt-1 opacity-90">
+                  Goal: <span className="font-semibold">{goalName}</span>
                 </p>
               </div>
-            </div>
-          </div>
-
-          {/* Monthly Surplus (after debt payments) */}
-          <div className={`rounded-lg shadow p-6 ${
-            monthlySurplus >= 0 ? 'bg-white' : ''
-          }`} style={{ backgroundColor: monthlySurplus >= 0 ? '#FFFFFF' : '#FEE2E2' }}>
-            <div className="flex items-center gap-3 mb-3">
-              <div className={`p-2 rounded-lg ${
-                monthlySurplus >= 0 ? '' : ''
-              }`} style={{ backgroundColor: monthlySurplus >= 0 ? '#8CE99A' : '#FECACA' }}>
-                <TrendingUp style={{ color: monthlySurplus >= 0 ? '#37B24D' : '#DC2626' }} size={24} />
-              </div>
-              <div className="flex-1">
-                <p className="text-sm" style={{ color: '#666666' }}>Monthly Surplus</p>
-                <p className={`text-2xl font-bold ${
-                  monthlySurplus >= 0 ? '' : ''
-                }`} style={{ color: monthlySurplus >= 0 ? '#37B24D' : '#DC2626' }}>
-                  {formatCurrency(monthlySurplus, currency.code)}
-                </p>
-                {hasSurplusWarning && (
-                  <p className="text-xs mt-1" style={{ color: '#DC2626' }}>
-                    ⚠️ Debt payments exceed surplus
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Total Debt */}
-          {hasDebt ? (
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 rounded-lg" style={{ backgroundColor: '#FFE066' }}>
-                  <Target style={{ color: '#FF9800' }} size={24} />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm" style={{ color: '#666666' }}>Total Debt</p>
-                  <p className="text-2xl font-bold" style={{ color: '#FF9800' }}>
-                    {formatCurrency(debtTotals.totalDebt, currency.code)}
-                  </p>
-                  {debtTotals.totalInterest > 0 && (
-                    <p className="text-xs mt-1" style={{ color: '#666666' }}>
-                      Interest: {formatCurrency(debtTotals.totalInterest, currency.code)}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="p-2 rounded-lg" style={{ backgroundColor: '#D1FAE5' }}>
-                  <Target style={{ color: '#10B981' }} size={24} />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm" style={{ color: '#666666' }}>Debt Status</p>
-                  <p className="text-xl font-bold" style={{ color: '#10B981' }}>
-                    Debt Free! ✓
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Current Breakdown */}
-        <div className="grid md:grid-cols-2 gap-6 mb-6">
-          {/* Income Breakdown */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h3 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: '#000000' }}>
-              <BarChart3 style={{ color: '#4DABF7' }} />
-              Income Breakdown
-            </h3>
-
-            <div className="mb-6">
-              {/* Simple visual representation */}
-              <div className="flex items-center justify-center mb-4">
-                <div className="relative w-40 h-40">
-                  {/* Circular progress - all active for now */}
-                  <svg className="transform -rotate-90" width="160" height="160">
-                    <circle
-                      cx="80"
-                      cy="80"
-                      r="70"
-                      stroke="#E5E7EB"
-                      strokeWidth="20"
-                      fill="none"
-                    />
-                    <circle
-                      cx="80"
-                      cy="80"
-                      r="70"
-                      stroke="#FF6B6B"
-                      strokeWidth="20"
-                      fill="none"
-                      strokeDasharray={`${2 * Math.PI * 70}`}
-                      strokeDashoffset="0"
-                    />
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="text-center">
-                      <p className="text-3xl font-bold" style={{ color: '#FF6B6B' }}>100%</p>
-                      <p className="text-xs" style={{ color: '#666666' }}>Active</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between p-3 rounded" style={{ backgroundColor: '#FFA8A8' }}>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#FF6B6B' }}></div>
-                    <span className="font-medium" style={{ color: '#000000' }}>Active Income (Job)</span>
-                  </div>
-                  <span className="font-bold" style={{ color: '#E03131' }}>
-                    {formatCurrency(finances.monthlyIncome, currency.code)}
-                  </span>
-                </div>
-                
-                <div className="flex items-center justify-between p-3 rounded opacity-50" style={{ backgroundColor: '#F9FAFB' }}>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#51CF66' }}></div>
-                    <span className="font-medium" style={{ color: '#000000' }}>Passive Income</span>
-                  </div>
-                  <span className="font-bold" style={{ color: '#666666' }}>
-                    {formatCurrency(0, currency.code)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="border rounded p-3 text-sm" style={{ backgroundColor: '#DBEAFE', borderColor: '#93C5FD' }}>
-              <p style={{ color: '#374151' }}>
-                💡 <strong>Future:</strong> Track passive income sources (investments, rentals, etc.) 
-                to see your progress toward financial freedom.
+              <p className="text-xs md:text-sm bg-white/15 rounded-2xl px-3 py-2 md:max-w-xs">
+                This page shows your money snapshot and tools for this week.
               </p>
             </div>
-          </div>
+          </section>
 
-          {/* Debt Summary or Habit Reminder */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
+          {/* Money Snapshot Section */}
+          <section className="mb-6">
+            <div className="flex items-baseline justify-between mb-3">
+              <h2 className="text-sm font-semibold text-gray-800">
+                Money Snapshot
+              </h2>
+            </div>
+
+            {/* Top KPIs */}
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-3 mb-4">
+              {/* Monthly Income */}
+              <MetricCard
+                icon={<DollarSign className="text-blue-600" size={20} />}
+                iconBg="bg-blue-100"
+                title="Monthly Income"
+                value={formatCurrency(finances.monthlyIncome, currency.code)}
+                valueColor="text-blue-700"
+              />
+
+              {/* Monthly Surplus */}
+              {monthlySurplus >= 0 ? (
+                <MetricCard
+                  icon={<TrendingUp className="text-green-600" size={20} />}
+                  iconBg="bg-green-100"
+                  title="Monthly Surplus"
+                  value={formatCurrency(monthlySurplus, currency.code)}
+                  valueColor="text-green-700"
+                />
+              ) : (
+                <MetricCard
+                  icon={<TrendingUp className="text-red-600" size={20} />}
+                  iconBg="bg-red-100"
+                  title="Monthly Surplus"
+                  value={formatCurrency(monthlySurplus, currency.code)}
+                  valueColor="text-red-700"
+                />
+              )}
+
+              {/* Total Debt */}
+              {hasDebt ? (
+                <MetricCard
+                  icon={<Target className="text-yellow-600" size={20} />}
+                  iconBg="bg-yellow-100"
+                  title="Total Debt Remaining"
+                  value={formatCurrency(debtTotals.totalDebt, currency.code)}
+                  valueColor="text-gray-900"
+                />
+              ) : (
+                <MetricCard
+                  icon={<Target className="text-green-600" size={20} />}
+                  iconBg="bg-green-100"
+                  title="Debt Status"
+                  value="Debt Free! ✓"
+                  valueColor="text-green-700"
+                />
+              )}
+            </div>
+
+            {/* Income vs Debt */}
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 auto-rows-fr">
+          {/* Income Breakdown */}
+          {(() => {
+            const totals = calculateIncomeTotals(incomeSources);
+            const maxCategory = Math.max(totals.totalWork, totals.totalAssets, totals.totalOther, 1);
+            
+            return (
+              <div className="bg-white rounded-2xl shadow p-6 h-full flex flex-col gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="text-blue-600 text-xl">📊</div>
+                  <div className="font-bold text-gray-900 text-lg">
+                    Income Breakdown
+                  </div>
+                </div>
+
+                <div className="text-4xl font-bold text-gray-900">
+                  {formatCurrency(totals.total, currency.code)}
+                </div>
+                <div className="text-gray-500 text-sm -mt-2">
+                  Total Monthly Income
+                </div>
+
+                {/* Money from Work Bar */}
+                <div>
+                  <div className="flex justify-between text-sm text-gray-700 mb-1">
+                    <span>Money from Work</span>
+                    <span className="font-medium">{formatCurrency(totals.totalWork, currency.code)}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 h-3 rounded-full">
+                    <div
+                      className="h-3 bg-blue-500 rounded-full transition-all"
+                      style={{
+                        width: `${(totals.totalWork / maxCategory) * 100}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Money from Assets Bar */}
+                <div>
+                  <div className="flex justify-between text-sm text-gray-700 mb-1">
+                    <span>Money from Assets</span>
+                    <span className="font-medium">{formatCurrency(totals.totalAssets, currency.code)}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 h-3 rounded-full">
+                    <div
+                      className="h-3 bg-green-500 rounded-full transition-all"
+                      style={{
+                        width: `${(totals.totalAssets / maxCategory) * 100}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Other Money Bar */}
+                <div>
+                  <div className="flex justify-between text-sm text-gray-700 mb-1">
+                    <span>Other Money</span>
+                    <span className="font-medium">{formatCurrency(totals.totalOther, currency.code)}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 h-3 rounded-full">
+                    <div
+                      className="h-3 bg-amber-500 rounded-full transition-all"
+                      style={{
+                        width: `${(totals.totalOther / maxCategory) * 100}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Add/Edit Income Sources Button */}
+                <button
+                  onClick={() => setShowIncomeModal(true)}
+                  className="text-blue-600 hover:text-blue-800 underline text-sm text-left mt-1"
+                >
+                  + Add / Edit Income Sources
+                </button>
+
+                <div className="bg-blue-50 text-blue-700 text-xs rounded-xl p-3 mt-auto">
+                  💡 Future: Track more income sources.
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Debt Overview */}
+          <div className="bg-white rounded-2xl shadow p-6 h-full flex flex-col gap-4">
             {hasDebt ? (
               <>
-                <h3 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: '#000000' }}>
-                  <Target style={{ color: '#FFC107' }} />
-                  Debt Overview
-                </h3>
-
-                <div className="space-y-4 mb-6">
-                  <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#FFE066' }}>
-                    <p className="text-sm mb-1" style={{ color: '#666666' }}>Total Remaining</p>
-                    <p className="text-3xl font-bold" style={{ color: '#FF9800' }}>
-                      {formatCurrency(debtTotals.totalDebt, currency.code)}
-                    </p>
-                    {debtTotals.totalInterest > 0 && (
-                      <p className="text-xs mt-1" style={{ color: '#666666' }}>
-                        Total Interest: {formatCurrency(debtTotals.totalInterest, currency.code)}
-                      </p>
-                    )}
+                <div className="flex items-center gap-2">
+                  <div className="text-orange-600 text-xl">💸</div>
+                  <div className="font-bold text-gray-900 text-lg">
+                    Debt Overview
                   </div>
+                </div>
 
-                  <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#F9FAFB' }}>
-                    <p className="text-sm mb-1" style={{ color: '#666666' }}>Monthly Payment</p>
-                    <p className="text-2xl font-bold" style={{ color: '#374151' }}>
-                      {formatCurrency(debtTotals.totalMonthlyPayment, currency.code)}
-                    </p>
+                <div className="text-4xl font-bold text-gray-900">
+                  {formatCurrency(debtTotals.totalDebt, currency.code)}
+                </div>
+                <div className="text-gray-500 text-sm -mt-2">
+                  Total Debt Remaining
+                </div>
+
+                {/* Progress Bar */}
+                {(() => {
+                  // Calculate percent paid (simplified - assume original debt was higher)
+                  // For now, we'll show progress based on estimated original debt
+                  const estimatedOriginalDebt = debtTotals.totalDebt * 1.1; // Rough estimate
+                  const percentPaid = Math.max(0, Math.min(100, ((estimatedOriginalDebt - debtTotals.totalDebt) / estimatedOriginalDebt) * 100));
+                  
+                  return (
+                    <div>
+                      <div className="flex justify-between text-xs text-gray-600 mb-1">
+                        <span>Progress</span>
+                        <span>{percentPaid.toFixed(0)}% paid</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div
+                          className="bg-yellow-500 h-3 rounded-full transition-all"
+                          style={{ width: `${percentPaid}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Payoff Timeline Sparkline */}
+                {debtFreeDate && maxMonthsToPayoff > 0 && maxMonthsToPayoff < 999 && (() => {
+                  // Generate sparkline data (simplified projection)
+                  const sparklineData = [];
+                  const months = Math.min(maxMonthsToPayoff, 12); // Show up to 12 months
+                  for (let i = 0; i <= months; i++) {
+                    const monthProgress = i / months;
+                    const remainingBalance = debtTotals.totalDebt * (1 - monthProgress);
+                    sparklineData.push({
+                      month: i,
+                      balance: Math.max(0, remainingBalance)
+                    });
+                  }
+                  
+                  return (
+                    <div>
+                      <div className="text-xs text-gray-600 mb-1">Payoff Timeline</div>
+                      <DebtSparkline data={sparklineData} debtFreeDate={debtFreeDate} />
+                    </div>
+                  );
+                })()}
+
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Monthly Payment</span>
+                    <span className="font-medium text-gray-900">{formatCurrency(debtTotals.totalMonthlyPayment, currency.code)}</span>
                   </div>
                   
                   {debtFreeDate && (
-                    <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#DBEAFE' }}>
-                      <p className="text-sm mb-1" style={{ color: '#666666' }}>Debt-Free Date</p>
-                      <p className="text-xl font-bold" style={{ color: '#1C7ED6' }}>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Debt-Free Date</span>
+                      <span className="font-medium text-gray-900">
                         {debtFreeDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
-                      </p>
+                      </span>
                     </div>
                   )}
                   
                   {nextDebtToPayoff && (
-                    <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#FEF3C7' }}>
-                      <p className="text-sm mb-1" style={{ color: '#666666' }}>Next to Pay Off</p>
-                      <p className="text-lg font-bold" style={{ color: '#92400E' }}>
-                        {nextDebtToPayoff.name}
-                      </p>
-                      <p className="text-xs mt-1" style={{ color: '#666666' }}>
-                        {formatCurrency(
-                          nextDebtToPayoff.debtType === 'mortgage' ? nextDebtToPayoff.principal : nextDebtToPayoff.balance,
-                          currency.code
-                        )} remaining
-                      </p>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Next to Pay Off</span>
+                      <span className="font-medium text-gray-900">{nextDebtToPayoff.name}</span>
                     </div>
                   )}
 
                   {hasHabit && (
-                    <div className="text-center p-4 rounded-lg" style={{ backgroundColor: '#8CE99A' }}>
-                      <p className="text-sm mb-1" style={{ color: '#666666' }}>With {habit.customAmount ? 'Step-up Strategy' : '1% Habit'}</p>
-                      <p className="text-2xl font-bold" style={{ color: '#37B24D' }}>
-                        {formatCurrency(
-                          totalMonthlyPayment + habitAmount, 
-                          currency.code
-                        )}
-                      </p>
-                      <p className="text-xs mt-1" style={{ color: '#666666' }}>
-                        +{formatCurrency(habitAmount, currency.code)}/month
-                      </p>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Step-up Strategy</span>
+                      <span className="font-medium text-gray-900">
+                        {formatCurrency(totalMonthlyPayment + habitAmount, currency.code)}
+                      </span>
                     </div>
                   )}
                 </div>
 
+                <div className="mt-3">
+                  <p className="text-xs uppercase tracking-wide text-gray-500">
+                    Interest you're on track to pay
+                  </p>
+                  <p className="text-lg font-semibold text-gray-700">
+                    {formatCurrency(debtTotals.totalInterest, currency.code)}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    This will decrease if you increase your monthly payments.
+                  </p>
+                </div>
+
                 <button
                   onClick={() => router.push('/onboarding/debts')}
-                  className="w-full py-3 text-white rounded-lg font-semibold transition-all"
+                  className="w-full py-2 text-white rounded-xl text-sm font-semibold transition-all mt-auto"
                   style={{ backgroundColor: '#FFC107' }}
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FF9800'}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFC107'}
@@ -548,316 +584,315 @@ export default function DashboardPage() {
               </>
             ) : (
               <>
-                <h3 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: '#000000' }}>
-                  <TrendingUp style={{ color: '#51CF66' }} />
-                  Your Commitment
-                </h3>
+                <div className="flex items-center gap-2">
+                  <div className="text-green-600 text-xl">📈</div>
+                  <div className="font-bold text-gray-900 text-lg">
+                    Your Commitment
+                  </div>
+                </div>
 
                 {hasHabit ? (
-                  <div className="space-y-4">
-                    <div className="border-2 rounded-lg p-6 text-center" style={{ backgroundColor: '#8CE99A', borderColor: '#51CF66' }}>
-                      <p className="text-sm mb-2" style={{ color: '#666666' }}>{habit.customAmount ? 'Step-up Strategy' : '1% Monthly Habit'}</p>
-                      <p className="text-4xl font-bold mb-2" style={{ color: '#37B24D' }}>
-                        {formatCurrency(habitAmount, currency.code)}
-                      </p>
-                      <p className="text-sm" style={{ color: '#374151' }}>
-                        Improving by this amount each month
-                      </p>
+                  <>
+                    <div className="text-4xl font-bold text-gray-900">
+                      {formatCurrency(habitAmount, currency.code)}
+                    </div>
+                    <div className="text-gray-500 text-sm -mt-2">
+                      {habit.customAmount ? 'Step-up Strategy' : '1% Monthly Habit'}
                     </div>
 
-                    <div className="border rounded p-4 text-sm" style={{ backgroundColor: '#DBEAFE', borderColor: '#93C5FD' }}>
-                      <p className="font-semibold mb-2" style={{ color: '#000000' }}>📈 Annual Impact:</p>
-                      <p style={{ color: '#374151' }}>
-                        {formatCurrency(habitAmount * 12, currency.code)} per year
-                      </p>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Annual Impact</span>
+                        <span className="font-medium text-gray-900">{formatCurrency(habitAmount * 12, currency.code)}</span>
+                      </div>
                     </div>
-                  </div>
+                  </>
                 ) : (
-                  <div className="border rounded-lg p-6 text-center" style={{ backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }}>
-                    <p className="mb-4" style={{ color: '#374151' }}>
-                      You haven't committed to the 1% habit yet.
-                    </p>
+                  <>
+                    <div className="text-4xl font-bold text-gray-900">
+                      £0
+                    </div>
+                    <div className="text-gray-500 text-sm -mt-2">
+                      No habit set yet
+                    </div>
+
                     <button
                       onClick={() => router.push('/onboarding/habit')}
-                      className="px-6 py-3 text-white rounded-lg font-semibold"
+                      className="w-full py-2 text-white rounded-xl text-sm font-semibold transition-all mt-auto"
                       style={{ backgroundColor: '#4DABF7' }}
                       onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1C7ED6'}
                       onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4DABF7'}
                     >
                       Set 1% Habit
                     </button>
-                  </div>
+                  </>
                 )}
               </>
             )}
           </div>
-        </div>
-
-        {/* Actions */}
-        <div className="grid md:grid-cols-2 gap-4 mb-6">
-          <button
-            onClick={() => router.push('/check-in')}
-            className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-lg transition-all" style={{ backgroundColor: '#8CE99A' }}>
-                  <PlusCircle style={{ color: '#37B24D' }} size={28} />
-                </div>
-                <div>
-                  <p className="font-bold text-lg" style={{ color: '#000000' }}>Weekly Check-In</p>
-                  <p className="text-sm" style={{ color: '#666666' }}>Update your progress</p>
-                </div>
-              </div>
-              <div className="transition-all" style={{ color: '#999999' }}>→</div>
             </div>
-          </button>
+          </section>
 
-          <button
-            onClick={() => router.push('/challenge')}
-            className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-lg transition-all" style={{ backgroundColor: '#FEF3C7' }}>
-                  <Zap style={{ color: '#D97706' }} size={28} />
-                </div>
-                <div>
-                  <p className="font-bold text-lg" style={{ color: '#000000' }}>1% Weekly Challenge</p>
-                  <p className="text-sm" style={{ color: '#666666' }}>Optional boost this week</p>
-                </div>
-              </div>
-              <div className="transition-all" style={{ color: '#999999' }}>→</div>
+          {/* Progress & Check-ins Section */}
+          <section className="mb-6">
+            <div className="flex items-baseline justify-between mb-3">
+              <h2 className="text-sm font-semibold text-gray-800">
+                Progress & Check-ins
+              </h2>
             </div>
-          </button>
 
-          <button
-            onClick={() => router.push('/milestones')}
-            className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-lg transition-all" style={{ backgroundColor: '#74C0FC' }}>
-                  <Target style={{ color: '#1C7ED6' }} size={28} />
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+              <button
+                onClick={() => router.push('/check-in')}
+                className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 rounded-lg transition-all" style={{ backgroundColor: '#8CE99A' }}>
+                      <PlusCircle style={{ color: '#37B24D' }} size={28} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-lg" style={{ color: '#000000' }}>Weekly Check-In</p>
+                      <p className="text-sm" style={{ color: '#666666' }}>Update your progress</p>
+                    </div>
+                  </div>
+                  <div className="transition-all" style={{ color: '#999999' }}>→</div>
                 </div>
-                <div>
-                  <p className="font-bold text-lg" style={{ color: '#000000' }}>View Milestones</p>
-                  <p className="text-sm" style={{ color: '#666666' }}>Track your achievements</p>
+              </button>
+
+              {currentWeek >= 4 && (
+                <button
+                  onClick={() => router.push('/challenge')}
+                  className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-lg transition-all" style={{ backgroundColor: '#FEF3C7' }}>
+                        <Zap style={{ color: '#D97706' }} size={28} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-lg" style={{ color: '#000000' }}>1% Weekly Challenge</p>
+                        <p className="text-sm" style={{ color: '#666666' }}>Optional boost this week</p>
+                      </div>
+                    </div>
+                    <div className="transition-all" style={{ color: '#999999' }}>→</div>
+                  </div>
+                </button>
+              )}
+
+              <button
+                onClick={() => router.push('/milestones')}
+                className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 rounded-lg transition-all" style={{ backgroundColor: '#74C0FC' }}>
+                      <Target style={{ color: '#1C7ED6' }} size={28} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-lg" style={{ color: '#000000' }}>View Milestones</p>
+                      <p className="text-sm" style={{ color: '#666666' }}>Track your achievements</p>
+                    </div>
+                  </div>
+                  <div className="transition-all" style={{ color: '#999999' }}>→</div>
                 </div>
-              </div>
-              <div className="transition-all" style={{ color: '#999999' }}>→</div>
+              </button>
+
+              <button
+                onClick={() => router.push('/check-in/history')}
+                className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 rounded-lg transition-all" style={{ backgroundColor: '#DBEAFE' }}>
+                      <Calendar style={{ color: '#2563EB' }} size={28} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-lg" style={{ color: '#000000' }}>Check-In History</p>
+                      <p className="text-sm" style={{ color: '#666666' }}>View past weeks</p>
+                    </div>
+                  </div>
+                  <div className="transition-all" style={{ color: '#999999' }}>→</div>
+                </div>
+              </button>
             </div>
-          </button>
+          </section>
 
-          <button
-            onClick={() => router.push('/check-in/history')}
-            className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-lg transition-all" style={{ backgroundColor: '#DBEAFE' }}>
-                  <Calendar style={{ color: '#2563EB' }} size={28} />
-                </div>
-                <div>
-                  <p className="font-bold text-lg" style={{ color: '#000000' }}>Check-In History</p>
-                  <p className="text-sm" style={{ color: '#666666' }}>View past weeks</p>
-                </div>
-              </div>
-              <div className="transition-all" style={{ color: '#999999' }}>→</div>
+          {/* Learn & Tools Section */}
+          <section>
+            <div className="flex items-baseline justify-between mb-3">
+              <h2 className="text-sm font-semibold text-gray-800">
+                Learn & Tools
+              </h2>
             </div>
-          </button>
-        </div>
 
-        {/* Resources Section */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold mb-4" style={{ color: '#000000' }}>Educational Resources</h2>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-2 gap-4">
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 auto-rows-fr">
             <button
               onClick={() => router.push('/life-moments')}
-              className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
+              className="bg-white rounded-2xl shadow p-4 flex items-center justify-between h-full hover:shadow-lg transition-all text-left group"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg transition-all" style={{ backgroundColor: '#E9D5FF' }}>
-                    <Heart style={{ color: '#7C3AED' }} size={28} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-lg" style={{ color: '#000000' }}>Life Moments</p>
-                    <p className="text-sm" style={{ color: '#666666' }}>Real situations at different ages</p>
-                  </div>
+              <div className="flex items-start gap-3 flex-1">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600 flex-shrink-0">
+                  <Heart size={20} />
                 </div>
-                <div className="transition-all" style={{ color: '#999999' }}>→</div>
+                <div>
+                  <div className="font-semibold text-gray-900">Life Moments</div>
+                  <div className="text-sm text-gray-500">Real situations at different ages</div>
+                </div>
               </div>
+              <div className="text-gray-400 text-xl ml-2">→</div>
             </button>
+
+            {/* 1% Habit Card - where Real Stories was */}
+            <HabitCard monthlyIncome={finances.monthlyIncome} />
 
             <button
               onClick={() => router.push('/stories')}
-              className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
+              className="bg-white rounded-2xl shadow p-4 flex items-center justify-between h-full hover:shadow-lg transition-all text-left group"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg transition-all" style={{ backgroundColor: '#FED7AA' }}>
-                    <BookOpen style={{ color: '#EA580C' }} size={28} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-lg" style={{ color: '#000000' }}>Real Stories</p>
-                    <p className="text-sm" style={{ color: '#666666' }}>Learn from others' experiences</p>
-                  </div>
+              <div className="flex items-start gap-3 flex-1">
+                <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 flex-shrink-0">
+                  <BookOpen size={20} />
                 </div>
-                <div className="transition-all" style={{ color: '#999999' }}>→</div>
+                <div>
+                  <div className="font-semibold text-gray-900">Real Stories</div>
+                  <div className="text-sm text-gray-500">Learn from others' experiences</div>
+                </div>
               </div>
+              <div className="text-gray-400 text-xl ml-2">→</div>
             </button>
 
             <button
               onClick={() => router.push('/recommendations')}
-              className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
+              className="bg-white rounded-2xl shadow p-4 flex items-center justify-between h-full hover:shadow-lg transition-all text-left group"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg transition-all" style={{ backgroundColor: '#D1FAE5' }}>
-                    <Sparkles style={{ color: '#065F46' }} size={28} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-lg" style={{ color: '#000000' }}>Recommended Tools</p>
-                    <p className="text-sm" style={{ color: '#666666' }}>Services that may help</p>
-                  </div>
+              <div className="flex items-start gap-3 flex-1">
+                <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-green-600 flex-shrink-0">
+                  <Sparkles size={20} />
                 </div>
-                <div className="transition-all" style={{ color: '#999999' }}>→</div>
+                <div>
+                  <div className="font-semibold text-gray-900">Recommended Tools</div>
+                  <div className="text-sm text-gray-500">Services that may help</div>
+                </div>
               </div>
+              <div className="text-gray-400 text-xl ml-2">→</div>
             </button>
 
             <button
               onClick={() => router.push('/analytics')}
-              className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
+              className="bg-white rounded-2xl shadow p-4 flex items-center justify-between h-full hover:shadow-lg transition-all text-left group"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg transition-all group-hover:bg-purple-500" style={{ backgroundColor: '#F3E8FF' }}>
-                    <BarChart3 className="group-hover:text-white transition-all" style={{ color: '#9333EA' }} size={28} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-lg flex items-center gap-2" style={{ color: '#000000' }}>
-                      Analytics
-                      {!canUseFeature('advanced_analytics', { createdAt, isPro, proExpiresAt, adminSettings }) && (
-                        <span className="text-xs text-white px-2 py-1 rounded-full" style={{ backgroundColor: '#37B24D' }}>PRO</span>
-                      )}
-                    </p>
-                    <p className="text-sm" style={{ color: '#666666' }}>Deep insights & projections</p>
-                  </div>
+              <div className="flex items-start gap-3 flex-1">
+                <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600 flex-shrink-0">
+                  <BarChart3 size={20} />
                 </div>
-                <div className="transition-all group-hover:text-purple-500" style={{ color: '#999999' }}>→</div>
+                <div>
+                  <div className="font-semibold text-gray-900 flex items-center gap-2">
+                    Analytics
+                    {!canUseFeature('advanced_analytics', { createdAt, isPro, proExpiresAt, adminSettings }) && (
+                      <span className="text-xs text-white px-2 py-1 rounded-full" style={{ backgroundColor: '#37B24D' }}>PRO</span>
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-500">Deep insights & projections</div>
+                </div>
               </div>
+              <div className="text-gray-400 text-xl ml-2">→</div>
             </button>
 
             <button
               onClick={() => router.push('/export')}
-              className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
+              className="bg-white rounded-2xl shadow p-4 flex items-center justify-between h-full hover:shadow-lg transition-all text-left group"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg transition-all group-hover:bg-green-500" style={{ backgroundColor: '#D1FAE5' }}>
-                    <Download className="group-hover:text-white transition-all" style={{ color: '#065F46' }} size={28} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-lg flex items-center gap-2" style={{ color: '#000000' }}>
-                      Export Data
-                      {!canUseFeature('export_data', { createdAt, isPro, proExpiresAt, adminSettings }) && (
-                        <span className="text-xs text-white px-2 py-1 rounded-full" style={{ backgroundColor: '#37B24D' }}>PRO</span>
-                      )}
-                    </p>
-                    <p className="text-sm" style={{ color: '#666666' }}>Download as CSV or PDF</p>
-                  </div>
+              <div className="flex items-start gap-3 flex-1">
+                <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-green-600 flex-shrink-0">
+                  <Download size={20} />
                 </div>
-                <div className="transition-all group-hover:text-green-500" style={{ color: '#999999' }}>→</div>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        {/* Calculators Section */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold mb-4" style={{ color: '#000000' }}>Calculators</h2>
-          
-          <div className="grid md:grid-cols-2 gap-4">
-            <button
-              onClick={() => router.push('/calculators/phone')}
-              className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg transition-all" style={{ backgroundColor: '#DBEAFE' }}>
-                    <Smartphone style={{ color: '#2563EB' }} size={28} />
+                <div>
+                  <div className="font-semibold text-gray-900 flex items-center gap-2">
+                    Export Data
+                    {!canUseFeature('export_data', { createdAt, isPro, proExpiresAt, adminSettings }) && (
+                      <span className="text-xs text-white px-2 py-1 rounded-full" style={{ backgroundColor: '#37B24D' }}>PRO</span>
+                    )}
                   </div>
-                  <div>
-                    <p className="font-bold text-lg" style={{ color: '#000000' }}>Dream Phone</p>
-                    <p className="text-sm" style={{ color: '#666666' }}>Save vs credit comparison</p>
-                  </div>
+                  <div className="text-sm text-gray-500">Download as CSV or PDF</div>
                 </div>
-                <div className="transition-all" style={{ color: '#999999' }}>→</div>
               </div>
+              <div className="text-gray-400 text-xl ml-2">→</div>
             </button>
-
-            <button
-              onClick={() => router.push('/calculators/credit')}
-              className="bg-white rounded-lg shadow-lg p-6 hover:shadow-xl transition-all text-left group"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-lg transition-all" style={{ backgroundColor: '#FED7AA' }}>
-                    <CreditCard style={{ color: '#EA580C' }} size={28} />
-                  </div>
-                  <div>
-                    <p className="font-bold text-lg" style={{ color: '#000000' }}>Cost of Credit</p>
-                    <p className="text-sm" style={{ color: '#666666' }}>See the real cost</p>
-                  </div>
-                </div>
-                <div className="transition-all" style={{ color: '#999999' }}>→</div>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        {/* Contextual Recommendations */}
-        {showRecs && recommendations.length > 0 && (
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold" style={{ color: '#000000' }}>Tools That May Help</h2>
               <button
-                onClick={() => router.push('/recommendations')}
-                className="text-sm font-semibold transition-all"
-                style={{ color: '#37B24D' }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#2F9E44'}
-                onMouseLeave={(e) => e.currentTarget.style.color = '#37B24D'}
+                onClick={() => router.push('/calculators/phone')}
+                className="bg-white rounded-2xl shadow p-4 flex items-center justify-between h-full hover:shadow-lg transition-all text-left group"
               >
-                View All →
+                <div className="flex items-start gap-3 flex-1">
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0">
+                    <Smartphone size={20} />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900">Dream Phone</div>
+                    <div className="text-sm text-gray-500">Save vs credit comparison</div>
+                  </div>
+                </div>
+                <div className="text-gray-400 text-xl ml-2">→</div>
+              </button>
+
+              <button
+                onClick={() => router.push('/calculators/credit')}
+                className="bg-white rounded-2xl shadow p-4 flex items-center justify-between h-full hover:shadow-lg transition-all text-left group"
+              >
+                <div className="flex items-start gap-3 flex-1">
+                  <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center text-orange-600 flex-shrink-0">
+                    <CreditCard size={20} />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900">Cost of Credit</div>
+                    <div className="text-sm text-gray-500">See the real cost</div>
+                  </div>
+                </div>
+                <div className="text-gray-400 text-xl ml-2">→</div>
               </button>
             </div>
-            
-            <div className="grid md:grid-cols-2 gap-6 mb-4">
-              {recommendations.map((rec) => (
-                <AffiliateCard key={rec.id} partner={rec} />
-              ))}
-            </div>
-            
-            <div className="text-center">
-              <button
-                onClick={() => setShowRecs(false)}
-                className="text-sm underline transition-all"
-                style={{ color: '#666666' }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#374151'}
-                onMouseLeave={(e) => e.currentTarget.style.color = '#666666'}
-              >
-                Hide recommendations
-              </button>
-            </div>
-          </div>
-        )}
 
-        {/* Footer message */}
-        <div className="text-center text-sm" style={{ color: '#999999' }}>
-          <p>🔒 All data stored locally on your device</p>
-        </div>
+            {/* Contextual Recommendations */}
+            {showRecs && recommendations.length > 0 && (
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-semibold text-gray-800">Tools That May Help</h3>
+                  <button
+                    onClick={() => router.push('/recommendations')}
+                    className="text-sm font-semibold transition-all"
+                    style={{ color: '#37B24D' }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = '#2F9E44'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = '#37B24D'}
+                  >
+                    View All →
+                  </button>
+                </div>
+                
+                <div className="grid md:grid-cols-2 gap-6 mb-4">
+                  {recommendations.map((rec) => (
+                    <AffiliateCard key={rec.id} partner={rec} />
+                  ))}
+                </div>
+                
+                <div className="text-center">
+                  <button
+                    onClick={() => setShowRecs(false)}
+                    className="text-sm underline transition-all"
+                    style={{ color: '#666666' }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = '#374151'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = '#666666'}
+                  >
+                    Hide recommendations
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* Footer message */}
+          <div className="text-center text-sm mt-8" style={{ color: '#999999' }}>
+            <p>🔒 All data stored locally on your device</p>
+          </div>
         </div>
       </div>
 
@@ -868,6 +903,18 @@ export default function DashboardPage() {
           onClose={() => setShowMilestone(false)}
         />
       )}
+
+      {/* Income Sources Modal */}
+      <IncomeSourcesModal
+        isOpen={showIncomeModal}
+        sources={incomeSources}
+        monthlyIncome={finances.monthlyIncome}
+        onClose={() => setShowIncomeModal(false)}
+        onSave={(sources) => {
+          saveIncomeSources(sources);
+          setIncomeSources(sources);
+        }}
+      />
     </>
   );
 }

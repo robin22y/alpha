@@ -53,7 +53,7 @@ const goals: Goal[] = [
   }
 ];
 
-const steps = ['Your Goal', 'Timeline', 'Details', 'Your Date'];
+const steps = ['Your Goal', 'Your Timeline', 'Your Income & Spending', 'Your Debt-Free Date'];
 
 export default function GoalPage() {
   const router = useRouter();
@@ -75,7 +75,7 @@ export default function GoalPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-trust-light/30 to-goal-light/30 py-8 px-4">
+    <div className="min-h-screen py-8 px-4" style={{ background: '#F5F5F7' }}>
       <PrivacyBadge />
       
       <div className="max-w-4xl mx-auto">

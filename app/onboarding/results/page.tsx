@@ -15,10 +15,12 @@ import {
 import PrivacyBadge from '@/components/PrivacyBadge';
 import { computeDebtsFromStore, calculateDebtTotals } from '@/lib/debtUtils';
 import type { DebtComputed } from '@/lib/debtEngine';
+import IncomeIdeasModal from '@/components/incomeIdeas/IncomeIdeasModal';
 
 export default function ResultsPage() {
   const router = useRouter();
   const [currency, setCurrency] = useState<ReturnType<typeof getCurrency> | null>(null);
+  const [showIncomeIdeasModal, setShowIncomeIdeasModal] = useState(false);
   
   const finances = useUserStore((state) => state.finances);
   const habit = useUserStore((state) => state.habit);
@@ -362,6 +364,12 @@ export default function ResultsPage() {
                     * Interest calculation is approximate and based on average balance method
                   </p>
                 )}
+                <button
+                  onClick={() => setShowIncomeIdeasModal(true)}
+                  className="mt-4 px-6 py-2 border-2 border-gray-300 rounded-lg font-semibold text-gray-900 hover:bg-white hover:border-gray-400 transition-colors"
+                >
+                  How can I achieve this?
+                </button>
               </div>
             )}
           </div>
@@ -430,6 +438,12 @@ export default function ResultsPage() {
           </p>
         </div>
       </div>
+
+      {/* Income Ideas Modal */}
+      <IncomeIdeasModal
+        isOpen={showIncomeIdeasModal}
+        onClose={() => setShowIncomeIdeasModal(false)}
+      />
     </div>
   );
 }
