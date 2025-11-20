@@ -70,8 +70,8 @@ export default function IncomeIdeasAdminPage() {
     }
 
     if (editingId) {
-      const updated = await updateIncomeIdea(editingId, formData);
-      if (updated) {
+      const result = await updateIncomeIdea(editingId, formData);
+      if (result.success) {
         showToast('success', 'Idea updated successfully');
         setEditingId(null);
         resetForm();
@@ -80,8 +80,8 @@ export default function IncomeIdeasAdminPage() {
         showToast('error', 'Failed to update idea');
       }
     } else {
-      const created = await createIncomeIdea(formData);
-      if (created) {
+      const result = await createIncomeIdea(formData);
+      if (result.success) {
         showToast('success', 'Idea created successfully');
         setShowAddForm(false);
         resetForm();
@@ -94,8 +94,8 @@ export default function IncomeIdeasAdminPage() {
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this idea?')) {
-      const success = await deleteIncomeIdea(id);
-      if (success) {
+      const result = await deleteIncomeIdea(id);
+      if (result.success) {
         showToast('success', 'Idea deleted successfully');
         loadIdeas();
       } else {
@@ -105,8 +105,8 @@ export default function IncomeIdeasAdminPage() {
   };
 
   const handleToggleActive = async (id: string, currentStatus: boolean) => {
-    const success = await toggleIncomeIdeaActive(id, !currentStatus);
-    if (success) {
+    const result = await toggleIncomeIdeaActive(id, !currentStatus);
+    if (result.success) {
       showToast('success', `Idea ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
       loadIdeas();
     } else {

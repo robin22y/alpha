@@ -1,9 +1,19 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase: SupabaseClient | null =
+  url && key ? createClient(url, key) : null;
+
+// --- safe helper ---
+function check() {
+  if (!supabase) {
+    console.warn("Supabase not initialized (missing env vars)");
+  }
+  return supabase;
+}
 
 export type IncomeIdeaCategory = 'fast' | 'local' | 'digital' | 'weekend' | 'resell' | 'sell' | 'weekly' | 'rent' | 'home' | 'teach' | 'transport' | 'homebiz';
 export type IncomeIdeaDifficulty = 'easy' | 'moderate';
@@ -18,145 +28,89 @@ export interface IncomeIdea {
   created_at: string;
 }
 
-/**
- * Get all active income ideas, optionally filtered by category
- */
+// GET ACTIVE ONLY
 export async function getIncomeIdeas(category?: IncomeIdeaCategory): Promise<IncomeIdea[]> {
-  try {
-    let query = supabase
-      .from('income_ideas')
-      .select('*')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false });
+  const client = check();
+  if (!client) return [];
 
-    if (category) {
-      query = query.eq('category', category);
-    }
+  let query = client
+    .from("income_ideas")
+    .select("*")
+    .eq("is_active", true)
+    .order("created_at", { ascending: false });
 
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('Error fetching income ideas:', error);
-      return [];
-    }
-
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching income ideas:', error);
-    return [];
+  if (category) {
+    query = query.eq("category", category);
   }
+
+  const { data } = await query;
+  return data ?? [];
 }
 
-/**
- * Get all income ideas (for admin - includes inactive)
- */
+// GET ALL (ADMIN)
 export async function getAllIncomeIdeas(): Promise<IncomeIdea[]> {
-  try {
-    const { data, error } = await supabase
-      .from('income_ideas')
-      .select('*')
-      .order('created_at', { ascending: false });
+  const client = check();
+  if (!client) return [];
 
-    if (error) {
-      console.error('Error fetching all income ideas:', error);
-      return [];
-    }
+  const { data } = await client
+    .from("income_ideas")
+    .select("*")
+    .order("created_at", { ascending: false });
 
-    return data || [];
-  } catch (error) {
-    console.error('Error fetching all income ideas:', error);
-    return [];
-  }
+  return data ?? [];
 }
 
-/**
- * Create a new income idea (admin only)
- */
-export async function createIncomeIdea(idea: Omit<IncomeIdea, 'id' | 'created_at'>): Promise<IncomeIdea | null> {
-  try {
-    const { data, error } = await supabase
-      .from('income_ideas')
-      .insert([idea])
-      .select()
-      .single();
+// CREATE
+export async function createIncomeIdea(payload: Omit<IncomeIdea, 'id' | 'created_at'>): Promise<{ success: boolean; data?: IncomeIdea }> {
+  const client = check();
+  if (!client) return { success: false };
 
-    if (error) {
-      console.error('Error creating income idea:', error);
-      return null;
-    }
+  const { data, error } = await client
+    .from("income_ideas")
+    .insert([payload])
+    .select()
+    .single();
 
-    return data;
-  } catch (error) {
-    console.error('Error creating income idea:', error);
-    return null;
-  }
+  return { success: !error, data: data ?? undefined };
 }
 
-/**
- * Update an income idea (admin only)
- */
-export async function updateIncomeIdea(id: string, updates: Partial<IncomeIdea>): Promise<IncomeIdea | null> {
-  try {
-    const { data, error } = await supabase
-      .from('income_ideas')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
+// UPDATE
+export async function updateIncomeIdea(id: string, payload: Partial<IncomeIdea>): Promise<{ success: boolean; data?: IncomeIdea }> {
+  const client = check();
+  if (!client) return { success: false };
 
-    if (error) {
-      console.error('Error updating income idea:', error);
-      return null;
-    }
+  const { data, error } = await client
+    .from("income_ideas")
+    .update(payload)
+    .eq("id", id)
+    .select()
+    .single();
 
-    return data;
-  } catch (error) {
-    console.error('Error updating income idea:', error);
-    return null;
-  }
+  return { success: !error, data: data ?? undefined };
 }
 
-/**
- * Delete an income idea (admin only)
- */
-export async function deleteIncomeIdea(id: string): Promise<boolean> {
-  try {
-    const { error } = await supabase
-      .from('income_ideas')
-      .delete()
-      .eq('id', id);
+// TOGGLE ACTIVE
+export async function toggleIncomeIdeaActive(id: string, active: boolean): Promise<{ success: boolean }> {
+  const client = check();
+  if (!client) return { success: false };
 
-    if (error) {
-      console.error('Error deleting income idea:', error);
-      return false;
-    }
+  const { error } = await client
+    .from("income_ideas")
+    .update({ is_active: active })
+    .eq("id", id);
 
-    return true;
-  } catch (error) {
-    console.error('Error deleting income idea:', error);
-    return false;
-  }
+  return { success: !error };
 }
 
-/**
- * Toggle active status of an income idea (admin only)
- */
-export async function toggleIncomeIdeaActive(id: string, isActive: boolean): Promise<boolean> {
-  try {
-    const { error } = await supabase
-      .from('income_ideas')
-      .update({ is_active: isActive })
-      .eq('id', id);
+// DELETE
+export async function deleteIncomeIdea(id: string): Promise<{ success: boolean }> {
+  const client = check();
+  if (!client) return { success: false };
 
-    if (error) {
-      console.error('Error toggling income idea active status:', error);
-      return false;
-    }
+  const { error } = await client
+    .from("income_ideas")
+    .delete()
+    .eq("id", id);
 
-    return true;
-  } catch (error) {
-    console.error('Error toggling income idea active status:', error);
-    return false;
-  }
+  return { success: !error };
 }
-
