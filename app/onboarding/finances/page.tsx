@@ -1,3 +1,6 @@
+
+export const dynamic = 'force-static';
+export const revalidate = 0;
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
@@ -30,8 +33,17 @@ export default function MonthlyInput() {
   }, []);
 
   const [monthlyIncome, setMonthlyIncome] = useState<string>('');
+  const [debouncedIncome, setDebouncedIncome] = useState<string>('');
   const [percents, setPercents] = useState<Percents>(defaultPercents);
   const [overshootAmount, setOvershootAmount] = useState<number>(0);
+
+  // Debounce income input to prevent excessive recalculations
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedIncome(monthlyIncome);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [monthlyIncome]);
 
   // Load any saved overshoot from previous session
   useEffect(() => {
@@ -42,7 +54,7 @@ export default function MonthlyInput() {
     }
   }, []);
 
-  const income = parseFloat(monthlyIncome) || 0;
+  const income = parseFloat(debouncedIncome) || 0;
 
   // Reset to defaults when income is first entered
   useEffect(() => {
@@ -120,17 +132,17 @@ export default function MonthlyInput() {
         
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold mb-3 text-black">
-            Your Money Overview
+          <h1 className="text-4xl md:text-5xl font-bold mb-3 text-black">
+            Your Monthly Money
           </h1>
-          <p className="text-black text-lg">
-            Tell us your monthly income
+          <p className="text-xl text-black">
+            Tell us your income and basic spending.
           </p>
         </div>
 
         {/* Monthly Income Input */}
-        <div className="bg-white rounded-lg shadow-lg p-6 md:p-8 mb-6">
-          <label className="block text-sm font-semibold mb-3 text-black">
+        <div className="bg-white rounded-2xl shadow-sm p-6 space-y-6 mb-6">
+          <label className="block text-base font-semibold mb-3 text-black">
             💰 Monthly income
           </label>
           <div className="relative">
@@ -153,17 +165,14 @@ export default function MonthlyInput() {
 
         {/* Percent Sliders */}
         {income > 0 && (
-          <div className="bg-white rounded-lg shadow-lg p-6 md:p-8 mb-6">
+          <div className="bg-white rounded-2xl shadow-sm p-6 space-y-6 mb-6">
             <h2 className="text-lg font-semibold mb-6 text-black">Monthly Expenses</h2>
-            
             <PercentSliders
               percents={percents}
               setPercents={setPercents}
               monthlyIncome={income}
               currency={currency}
             />
-
-            {/* Summary based only on user sliders */}
             <div className="mt-6 bg-gray-50 p-4 rounded-lg text-sm space-y-1">
               <div>
                 Total allocation:{" "}
@@ -183,8 +192,6 @@ export default function MonthlyInput() {
                 </div>
               )}
             </div>
-
-            {/* Overshoot question: only when user hit 100% */}
             {Math.round(totalPercent) === 100 && (
               <OvershootQuestion
                 overshootAmount={overshootAmount}

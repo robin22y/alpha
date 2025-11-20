@@ -3,7 +3,7 @@
  * Syncs PRO subscriptions to Supabase for admin management
  */
 
-import { supabase, isSupabaseConfigured, SubscriptionRecord, DeviceTransferRecord } from './supabase';
+import { getSupabaseClient, isSupabaseConfigured, SubscriptionRecord, DeviceTransferRecord } from './supabase';
 import { SubscriptionStatus, DeviceTransferRequest } from './subscription';
 
 /**
@@ -17,6 +17,9 @@ export async function syncSubscriptionToSupabase(
   }
 
   try {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Supabase not configured' };
+
     const record: Partial<SubscriptionRecord> = {
       device_id: subscription.deviceID,
       restore_code: subscription.restoreCode,
@@ -28,7 +31,7 @@ export async function syncSubscriptionToSupabase(
       updated_at: new Date().toISOString()
     };
 
-    const { error } = await supabase!
+    const { error } = await supabase
       .from('subscriptions')
       .upsert(record, {
         onConflict: 'device_id'
@@ -55,7 +58,10 @@ export async function getSubscriptionFromSupabase(
   if (!isSupabaseConfigured()) return null;
 
   try {
-    const { data, error } = await supabase!
+    const supabase = getSupabaseClient();
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
       .from('subscriptions')
       .select('*')
       .eq('device_id', deviceID)
@@ -88,9 +94,12 @@ export async function getSubscriptionByRestoreCodeFromSupabase(
   if (!isSupabaseConfigured()) return null;
 
   try {
+    const supabase = getSupabaseClient();
+    if (!supabase) return null;
+
     const normalizedCode = restoreCode.replace('-', '').toUpperCase();
     
-    const { data, error } = await supabase!
+    const { data, error } = await supabase
       .from('subscriptions')
       .select('*')
       .ilike('restore_code', normalizedCode)
@@ -121,7 +130,10 @@ export async function getAllSubscriptionsFromSupabase(): Promise<SubscriptionSta
   if (!isSupabaseConfigured()) return [];
 
   try {
-    const { data, error } = await supabase!
+    const supabase = getSupabaseClient();
+    if (!supabase) return [];
+
+    const { data, error } = await supabase
       .from('subscriptions')
       .select('*')
       .order('created_at', { ascending: false });
@@ -154,6 +166,9 @@ export async function syncTransferRequestToSupabase(
   }
 
   try {
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Supabase not configured' };
+
     const record: Partial<DeviceTransferRecord> = {
       restore_code: request.restoreCode,
       old_device_id: request.oldDeviceID,
@@ -165,7 +180,7 @@ export async function syncTransferRequestToSupabase(
       rejection_reason: request.rejectionReason
     };
 
-    const { error } = await supabase!
+    const { error } = await supabase
       .from('device_transfers')
       .upsert(record, {
         onConflict: 'id'
@@ -190,7 +205,10 @@ export async function getAllTransferRequestsFromSupabase(): Promise<DeviceTransf
   if (!isSupabaseConfigured()) return [];
 
   try {
-    const { data, error } = await supabase!
+    const supabase = getSupabaseClient();
+    if (!supabase) return [];
+
+    const { data, error } = await supabase
       .from('device_transfers')
       .select('*')
       .order('requested_at', { ascending: false });

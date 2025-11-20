@@ -1,7 +1,11 @@
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 'use client';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { Calendar, TrendingUp, DollarSign, Target, ArrowRight } from 'lucide-react';
 import { useUserStore } from '@/store/useUserStore';
 import { formatCurrency, getCurrency } from '@/lib/currency';
@@ -15,7 +19,14 @@ import {
 import PrivacyBadge from '@/components/PrivacyBadge';
 import { computeDebtsFromStore, calculateDebtTotals } from '@/lib/debtUtils';
 import type { DebtComputed } from '@/lib/debtEngine';
-import IncomeIdeasModal from '@/components/incomeIdeas/IncomeIdeasModal';
+// Lazy load IncomeIdeasModal - only loads when user clicks button
+const IncomeIdeasModal = dynamic(
+  () => import('@/components/incomeIdeas/IncomeIdeasModal'),
+  { 
+    ssr: false,
+    loading: () => null
+  }
+);
 
 export default function ResultsPage() {
   const router = useRouter();

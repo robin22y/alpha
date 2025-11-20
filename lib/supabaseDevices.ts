@@ -3,7 +3,7 @@
  * Syncs device IDs and restore codes to Supabase for admin management
  */
 
-import { supabase, isSupabaseConfigured, DeviceRecord } from './supabase';
+import { getSupabaseClient, isSupabaseConfigured, DeviceRecord } from './supabase';
 import { syncSubscriptionToSupabase } from './supabaseSubscriptions';
 
 /**
@@ -20,7 +20,10 @@ export async function registerDevice(
   }
 
   try {
-    const { error } = await supabase!
+    const supabase = getSupabaseClient();
+    if (!supabase) return { success: false, error: 'Supabase not configured' };
+
+    const { error } = await supabase
       .from('devices')
       .upsert({
         device_id: deviceID,
@@ -66,7 +69,10 @@ export async function updateDeviceLastSeen(deviceID: string): Promise<void> {
   if (!isSupabaseConfigured()) return;
 
   try {
-    await supabase!
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    await supabase
       .from('devices')
       .update({ last_seen_at: new Date().toISOString() })
       .eq('device_id', deviceID);
@@ -84,9 +90,12 @@ export async function getDeviceByRestoreCode(
   if (!isSupabaseConfigured()) return null;
 
   try {
+    const supabase = getSupabaseClient();
+    if (!supabase) return null;
+
     const normalizedCode = restoreCode.replace('-', '').toUpperCase();
     
-    const { data, error } = await supabase!
+    const { data, error } = await supabase
       .from('devices')
       .select('*')
       .ilike('restore_code', normalizedCode)
@@ -107,7 +116,10 @@ export async function getDeviceByID(deviceID: string): Promise<DeviceRecord | nu
   if (!isSupabaseConfigured()) return null;
 
   try {
-    const { data, error } = await supabase!
+    const supabase = getSupabaseClient();
+    if (!supabase) return null;
+
+    const { data, error } = await supabase
       .from('devices')
       .select('*')
       .eq('device_id', deviceID)

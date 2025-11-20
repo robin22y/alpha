@@ -1,22 +1,43 @@
-import { createClient } from "@supabase/supabase-js";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+let cachedClient: SupabaseClient | null = null;
 
-export const supabase: SupabaseClient | null =
-  url && key ? createClient(url, key) : null;
+/**
+ * Lazily get Supabase client only when needed.
+ * Prevents Next.js prerender crashes.
+ */
+function getClient(): SupabaseClient | null {
+  if (cachedClient) return cachedClient;
 
-// --- safe helper ---
-function check() {
-  if (!supabase) {
-    console.warn("Supabase not initialized (missing env vars)");
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !key) {
+    console.warn("[incomeIdeas] Supabase not initialized – missing env vars.");
+    return null;
   }
-  return supabase;
+
+  cachedClient = createClient(url, key);
+  return cachedClient;
 }
 
-export type IncomeIdeaCategory = 'fast' | 'local' | 'digital' | 'weekend' | 'resell' | 'sell' | 'weekly' | 'rent' | 'home' | 'teach' | 'transport' | 'homebiz';
-export type IncomeIdeaDifficulty = 'easy' | 'moderate';
+// TYPES
+
+export type IncomeIdeaCategory =
+  | "fast"
+  | "local"
+  | "digital"
+  | "weekend"
+  | "resell"
+  | "sell"
+  | "weekly"
+  | "rent"
+  | "home"
+  | "teach"
+  | "transport"
+  | "homebiz";
+
+export type IncomeIdeaDifficulty = "easy" | "moderate";
 
 export interface IncomeIdea {
   id: string;
@@ -28,9 +49,12 @@ export interface IncomeIdea {
   created_at: string;
 }
 
-// GET ACTIVE ONLY
-export async function getIncomeIdeas(category?: IncomeIdeaCategory): Promise<IncomeIdea[]> {
-  const client = check();
+/** GET ACTIVE (USER) */
+
+export async function getIncomeIdeas(
+  category?: IncomeIdeaCategory
+): Promise<IncomeIdea[]> {
+  const client = getClient();
   if (!client) return [];
 
   let query = client
@@ -39,30 +63,43 @@ export async function getIncomeIdeas(category?: IncomeIdeaCategory): Promise<Inc
     .eq("is_active", true)
     .order("created_at", { ascending: false });
 
-  if (category) {
-    query = query.eq("category", category);
+  if (category) query = query.eq("category", category);
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("[incomeIdeas] getIncomeIdeas error:", error);
+    return [];
   }
 
-  const { data } = await query;
   return data ?? [];
 }
 
-// GET ALL (ADMIN)
+/** GET ALL (ADMIN) */
+
 export async function getAllIncomeIdeas(): Promise<IncomeIdea[]> {
-  const client = check();
+  const client = getClient();
   if (!client) return [];
 
-  const { data } = await client
+  const { data, error } = await client
     .from("income_ideas")
     .select("*")
     .order("created_at", { ascending: false });
 
+  if (error) {
+    console.error("[incomeIdeas] getAllIncomeIdeas error:", error);
+    return [];
+  }
+
   return data ?? [];
 }
 
-// CREATE
-export async function createIncomeIdea(payload: Omit<IncomeIdea, 'id' | 'created_at'>): Promise<{ success: boolean; data?: IncomeIdea }> {
-  const client = check();
+/** CREATE */
+
+export async function createIncomeIdea(
+  payload: Omit<IncomeIdea, "id" | "created_at">
+): Promise<{ success: boolean; data?: IncomeIdea }> {
+  const client = getClient();
   if (!client) return { success: false };
 
   const { data, error } = await client
@@ -74,9 +111,13 @@ export async function createIncomeIdea(payload: Omit<IncomeIdea, 'id' | 'created
   return { success: !error, data: data ?? undefined };
 }
 
-// UPDATE
-export async function updateIncomeIdea(id: string, payload: Partial<IncomeIdea>): Promise<{ success: boolean; data?: IncomeIdea }> {
-  const client = check();
+/** UPDATE */
+
+export async function updateIncomeIdea(
+  id: string,
+  payload: Partial<IncomeIdea>
+): Promise<{ success: boolean; data?: IncomeIdea }> {
+  const client = getClient();
   if (!client) return { success: false };
 
   const { data, error } = await client
@@ -89,9 +130,13 @@ export async function updateIncomeIdea(id: string, payload: Partial<IncomeIdea>)
   return { success: !error, data: data ?? undefined };
 }
 
-// TOGGLE ACTIVE
-export async function toggleIncomeIdeaActive(id: string, active: boolean): Promise<{ success: boolean }> {
-  const client = check();
+/** TOGGLE ACTIVE */
+
+export async function toggleIncomeIdeaActive(
+  id: string,
+  active: boolean
+): Promise<{ success: boolean }> {
+  const client = getClient();
   if (!client) return { success: false };
 
   const { error } = await client
@@ -102,9 +147,12 @@ export async function toggleIncomeIdeaActive(id: string, active: boolean): Promi
   return { success: !error };
 }
 
-// DELETE
-export async function deleteIncomeIdea(id: string): Promise<{ success: boolean }> {
-  const client = check();
+/** DELETE */
+
+export async function deleteIncomeIdea(
+  id: string
+): Promise<{ success: boolean }> {
+  const client = getClient();
   if (!client) return { success: false };
 
   const { error } = await client

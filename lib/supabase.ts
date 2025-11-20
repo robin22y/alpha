@@ -1,24 +1,38 @@
 /**
- * Supabase Client Setup
- * Used for device ID tracking, subscription management, and optional cloud sync
+ * Safe Supabase Client Setup
+ * Prevents Netlify & Next.js prerender crashes
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Get Supabase URL and anon key from environment variables
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+let cachedClient: SupabaseClient | null = null;
 
-// Create Supabase client (only if credentials are provided)
-export const supabase = supabaseUrl && supabaseAnonKey
-  ? createClient(supabaseUrl, supabaseAnonKey)
-  : null;
+/**
+ * Lazily create the Supabase client ONLY when actually needed.
+ * Never during build or prerender import time.
+ */
+export function getSupabaseClient(): SupabaseClient | null {
+  if (cachedClient) return cachedClient;
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn('[Supabase] Missing environment variables. Returning null client.');
+    return null;
+  }
+
+  cachedClient = createClient(supabaseUrl, supabaseAnonKey);
+  return cachedClient;
+}
 
 /**
  * Check if Supabase is configured
  */
 export function isSupabaseConfigured(): boolean {
-  return !!supabase && !!supabaseUrl && !!supabaseAnonKey;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  return !!url && !!key;
 }
 
 /**
@@ -42,7 +56,7 @@ export interface SubscriptionRecord {
   pro_since?: string;
   pro_expires_at?: string;
   last_device_change?: string;
-  device_transfer_history?: any; // JSON array
+  device_transfer_history?: any;
   created_at?: string;
   updated_at?: string;
 }
@@ -58,4 +72,3 @@ export interface DeviceTransferRecord {
   approved_by?: string;
   rejection_reason?: string;
 }
-

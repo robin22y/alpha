@@ -18,6 +18,10 @@ import { canUseFeature, hasProAccess } from '@/lib/proFeatures';
 import { syncProStatusToStore } from '@/lib/subscription';
 import { getUserIdentifiers } from '@/lib/deviceId';
 import dynamic from 'next/dynamic';
+
+// Dashboard - dynamic (uses Supabase for sync, heavy calculations)
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 import PrivacyBadge from '@/components/PrivacyBadge';
 import Navigation from '@/components/Navigation';
 import LifeBufferAsk from '@/components/LifeBufferAsk';
@@ -26,7 +30,11 @@ import { getContextualRecommendations, shouldShowRecommendations, markRecommenda
 import AffiliateCard from '@/components/AffiliateCard';
 import { computeDebtsFromStore, calculateDebtTotals } from '@/lib/debtUtils';
 import type { DebtComputed } from '@/lib/debtEngine';
-import DebtSparkline from '@/components/DebtSparkline';
+// Lazy load chart components - Recharts is heavy
+const DebtSparkline = dynamic(() => import('@/components/DebtSparkline'), {
+  ssr: false,
+  loading: () => <div className="h-10 w-full bg-gray-100 rounded animate-pulse" />
+});
 import IncomeSourcesModal from '@/components/IncomeSourcesModal';
 import MetricCard from '@/components/MetricCard';
 import { 
