@@ -1,6 +1,4 @@
 
-export const dynamic = 'force-static';
-export const revalidate = 0;
 'use client';
 
 import { useEffect } from 'react';

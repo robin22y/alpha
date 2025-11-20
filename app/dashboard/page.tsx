@@ -19,9 +19,8 @@ import { syncProStatusToStore } from '@/lib/subscription';
 import { getUserIdentifiers } from '@/lib/deviceId';
 import dynamic from 'next/dynamic';
 
-// Dashboard - dynamic (uses Supabase for sync, heavy calculations)
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+// Dashboard - client component (uses Supabase for sync, heavy calculations)
+// Note: Client components are dynamic by default, no need for export const dynamic
 import PrivacyBadge from '@/components/PrivacyBadge';
 import Navigation from '@/components/Navigation';
 import LifeBufferAsk from '@/components/LifeBufferAsk';
